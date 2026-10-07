@@ -3,7 +3,7 @@
 # Just verifies that the group's hosts are reachable and alive.
 # No Insights API calls — this is a simpler loop context.
 
-- name: Fleet Assessment — Patching Loop
+- name: Fleet Assessment
   hosts: all
   gather_facts: true
 

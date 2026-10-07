@@ -1,5 +1,5 @@
 ---
-- name: Post-Remediation Validation — Patching Loop
+- name: Post-Remediation Validation
   hosts: all
   gather_facts: false
 
@@ -36,7 +36,7 @@
     - name: Build consolidated post-check report
       ansible.builtin.set_fact:
         postcheck_report: |
-          === Post-check Report (Patching Loop — Group {{ current_group | default('?') }}) ===
+          === Post-check Report (Group {{ current_group | default('?') }}) ===
           Hosts checked ({{ _host_count }}): {{ _checked_hosts }}
 
           Services: nginx, sshd — active on all hosts ✓

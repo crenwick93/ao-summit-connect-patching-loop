@@ -1,5 +1,5 @@
 ---
-- name: Pre-check System Readiness — Patching Loop
+- name: Pre-check System Readiness
   hosts: all
   gather_facts: false
 
@@ -52,7 +52,7 @@
     - name: Build consolidated pre-check report
       ansible.builtin.set_fact:
         precheck_report: |
-          === Pre-check Report (Patching Loop — Group {{ current_group | default('?') }}) ===
+          === Pre-check Report (Group {{ current_group | default('?') }}) ===
           Hosts checked ({{ _host_count }}): {{ _checked_hosts }}
 
           Disk (root): OK on all hosts ✓
