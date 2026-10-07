@@ -39,6 +39,8 @@
         "extra_vars": {
           "current_group": "${trigger.current_group}"
         },
+        "credential_id": "beb79e87-9581-4447-873d-229755ea8a2b",
+        "integration_id": "851d4bfd-6ccb-4b46-81ec-d1cc930b87ef",
         "job_template_name": "Loop - Fleet Assessment",
         "organization_name": "Default"
       },
@@ -58,6 +60,8 @@
           "current_group": "${trigger.current_group}",
           "target_hosts": "${fleet_assessment.artifacts.target_hosts}"
         },
+        "credential_id": "beb79e87-9581-4447-873d-229755ea8a2b",
+        "integration_id": "851d4bfd-6ccb-4b46-81ec-d1cc930b87ef",
         "job_template_name": "Loop - Fetch and Commit",
         "organization_name": "Default"
       },
@@ -78,6 +82,8 @@
           "target_hosts": "${fleet_assessment.artifacts.target_hosts}",
           "playbook_filename": "${fetch_and_commit.artifacts.playbook_filename}"
         },
+        "credential_id": "beb79e87-9581-4447-873d-229755ea8a2b",
+        "integration_id": "851d4bfd-6ccb-4b46-81ec-d1cc930b87ef",
         "job_template_name": "Loop - Sync and Deploy",
         "organization_name": "Default"
       },
@@ -97,6 +103,8 @@
           "current_group": "${trigger.current_group}",
           "target_hosts": "${fleet_assessment.artifacts.target_hosts}"
         },
+        "credential_id": "beb79e87-9581-4447-873d-229755ea8a2b",
+        "integration_id": "851d4bfd-6ccb-4b46-81ec-d1cc930b87ef",
         "job_template_name": "Loop - Manage Change Request",
         "organization_name": "Default"
       },
@@ -128,6 +136,8 @@
           "current_group": "${trigger.current_group}",
           "cr_sys_id": "${create_cr.artifacts.cr_sys_id}"
         },
+        "credential_id": "beb79e87-9581-4447-873d-229755ea8a2b",
+        "integration_id": "851d4bfd-6ccb-4b46-81ec-d1cc930b87ef",
         "job_template_name": "Loop - Pre-check",
         "organization_name": "Default"
       },
@@ -147,6 +157,8 @@
           "current_group": "${trigger.current_group}",
           "cr_sys_id": "${create_cr.artifacts.cr_sys_id}"
         },
+        "credential_id": "beb79e87-9581-4447-873d-229755ea8a2b",
+        "integration_id": "851d4bfd-6ccb-4b46-81ec-d1cc930b87ef",
         "job_template_name": "${sync_and_deploy.artifacts.template_name}",
         "organization_name": "Default"
       },
@@ -166,6 +178,8 @@
           "current_group": "${trigger.current_group}",
           "cr_sys_id": "${create_cr.artifacts.cr_sys_id}"
         },
+        "credential_id": "beb79e87-9581-4447-873d-229755ea8a2b",
+        "integration_id": "851d4bfd-6ccb-4b46-81ec-d1cc930b87ef",
         "job_template_name": "Loop - Post-check",
         "organization_name": "Default"
       },
@@ -185,6 +199,8 @@
           "cr_sys_id": "${create_cr.artifacts.cr_sys_id}",
           "close_notes": "Patching loop cycle for Group ${trigger.current_group} complete. All checks passed."
         },
+        "credential_id": "beb79e87-9581-4447-873d-229755ea8a2b",
+        "integration_id": "851d4bfd-6ccb-4b46-81ec-d1cc930b87ef",
         "job_template_name": "Loop - Manage Change Request",
         "organization_name": "Default"
       },
@@ -214,6 +230,8 @@
         "extra_vars": {
           "current_group": "${trigger.current_group}"
         },
+        "credential_id": "beb79e87-9581-4447-873d-229755ea8a2b",
+        "integration_id": "851d4bfd-6ccb-4b46-81ec-d1cc930b87ef",
         "job_template_name": "Loop - Reset Group",
         "organization_name": "Default"
       },
@@ -231,6 +249,8 @@
         "extra_vars": {
           "current_group": "${trigger.current_group}"
         },
+        "credential_id": "beb79e87-9581-4447-873d-229755ea8a2b",
+        "integration_id": "851d4bfd-6ccb-4b46-81ec-d1cc930b87ef",
         "job_template_name": "Loop - Fire Next Group",
         "organization_name": "Default"
       },
