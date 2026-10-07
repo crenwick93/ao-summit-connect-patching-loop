@@ -1,11 +1,14 @@
 ---
 # Patching Loop EDA Rulebook
 #
-# Two rulesets:
-#   1. Webhook trigger — receives webhook from start-loop.sh or fire_next_group.yml
+# Three rulesets:
+#   1. Webhook trigger — receives webhook from start-loop.sh or recycle_environment.yml
 #      with current_group payload. Triggers the AO patching workflow.
 #   2. SNOW CR bridge — polls change_request table for CRs with "Patching Loop"
 #      in description. When state = Implement (-1), bridges to AO approval gate.
+#   3. SNOW CR closed — when a Patching Loop CR is closed (state = 3), triggers the
+#      recycle job to soak, reset EC2s, and fire the next group. This keeps the AO
+#      workflow clean — it ends at Close CR and shows Completed immediately.
 #
 # Requires ServiceNow DE (quay.io/crenwick93/snow-de:latest) for the
 # servicenow.itsm.records source plugin.
@@ -60,3 +63,17 @@
               cr_number: "{{ event.number }}"
               cr_sys_id: "{{ event.sys_id }}"
               cr_short_description: "{{ event.short_description }}"
+
+    - name: CR closed — recycle environment and start next group
+      throttle:
+        once_within: 10 minutes
+        group_by_attributes:
+          - sys_id
+      condition: event.state == '3'
+      action:
+        run_job_template:
+          name: "Loop - Recycle Environment"
+          organization: Default
+          job_args:
+            extra_vars:
+              current_group: "{{ event.short_description.split('Group ')[1][0] }}"

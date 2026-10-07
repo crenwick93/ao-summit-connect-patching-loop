@@ -196,7 +196,6 @@
         "diff_mode": false,
         "extra_vars": {
           "action": "close",
-          "current_group": "${trigger.current_group}",
           "cr_sys_id": "${create_cr.artifacts.cr_sys_id}",
           "close_notes": "Patching loop cycle for Group ${trigger.current_group} complete. All checks passed."
         },

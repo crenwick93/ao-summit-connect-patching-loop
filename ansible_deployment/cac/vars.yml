@@ -264,9 +264,6 @@ controller_templates:
     ask_variables_on_launch: true
     credentials:
       - "Loop - ServiceNow"
-      - "Loop - AWS"
-      - "Loop - SSH Key"
-      - "Loop - AO Webhook"
 
   - name: "Loop - Bridge AO Approval"
     description: "Bridges ServiceNow CR approval to AO workflow approval gate via AO REST API"
@@ -341,6 +338,19 @@ controller_templates:
     credentials:
       - "Loop - SSH Key"
       - "Loop - ServiceNow"
+
+  - name: "Loop - Recycle Environment"
+    description: "Soak, reset EC2 instances, register with Insights, and fire next group webhook"
+    organization: "Default"
+    job_type: "run"
+    project: "Patching Loop"
+    playbook: "playbooks/recycle_environment.yml"
+    inventory: "Patching Loop Lab"
+    ask_variables_on_launch: true
+    credentials:
+      - "Loop - AWS"
+      - "Loop - SSH Key"
+      - "Loop - AO Webhook"
 
 # =============================================================================
 # Event-Driven Ansible
