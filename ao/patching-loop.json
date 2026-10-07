@@ -17,10 +17,8 @@
             }
           }
         },
-        "webhook_path": "PLACEHOLDER_WEBHOOK_PATH",
-        "authorized_service_account_ids": [
-          "PLACEHOLDER_SERVICE_ACCOUNT_ID"
-        ]
+        "webhook_path": "",
+        "authorized_service_account_ids": []
       },
       "position": {
         "x": 0,
@@ -406,13 +404,14 @@
     {
       "id": "update_cr_skip",
       "type": "aap_job_template",
-      "name": "Update CR (No Remediation)",
+      "name": "Skip — No Remediation",
       "parameters": {
         "diff_mode": false,
         "extra_vars": {
-          "action": "update",
-          "cr_sys_id": "${create_cr.artifacts.cr_sys_id}",
-          "work_notes": "[AUTOMATED] No patch or mitigation available for CVE-2021-4034 on Group ${trigger.current_group}. Hosts: ${fleet_assessment.artifacts.target_hosts}. This group will be reassessed in the next cycle."
+          "action": "create",
+          "current_group": "${trigger.current_group}",
+          "target_hosts": "${fleet_assessment.artifacts.target_hosts}",
+          "cr_type": "skip"
         },
         "credential_id": "beb79e87-9581-4447-873d-229755ea8a2b",
         "integration_id": "851d4bfd-6ccb-4b46-81ec-d1cc930b87ef",
