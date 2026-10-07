@@ -21,7 +21,7 @@ if [[ -f "${REPO_ROOT}/.env" ]]; then
 fi
 
 GROUP="${1:-A}"
-GROUP="${GROUP^^}"
+GROUP="$(echo "$GROUP" | tr '[:lower:]' '[:upper:]')"
 
 if [[ ! "$GROUP" =~ ^[ABC]$ ]]; then
   echo "Error: GROUP must be A, B, or C (got: $GROUP)" >&2

@@ -33,9 +33,9 @@
     # =========================================================================
     # ACTION: create
     # =========================================================================
-    - name: Create normal Change Request for patching approval
+    - name: Create emergency Change Request for patching approval
       servicenow.itsm.change_request:
-        type: normal
+        type: emergency
         state: new
         short_description: "Patching Loop — Group {{ current_group }} — PwnKit Mitigation"
         description: |
@@ -147,6 +147,14 @@
           - cr_sys_id is defined
           - cr_sys_id | length > 0
         fail_msg: "cr_sys_id must be provided for close action"
+      when: action == 'close'
+
+    - name: Transition CR to Review before closing
+      servicenow.itsm.change_request:
+        sys_id: "{{ cr_sys_id }}"
+        state: review
+        other:
+          work_notes: "{{ close_notes | default('Patching loop cycle complete. Moving to review.') }}"
       when: action == 'close'
 
     - name: Close CR
