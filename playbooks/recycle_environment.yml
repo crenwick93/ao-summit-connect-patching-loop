@@ -84,7 +84,7 @@
     _instance_type: "{{ instance_type | default('t3.micro') }}"
     _subnet_id: "{{ subnet_id | default('subnet-0e20d6149a3cc75c3') }}"
     _sg_id: "{{ security_group_id | default('sg-05d455584d799b076') }}"
-    _key_pair: "{{ key_pair_name | default(lookup('env', 'AWS_KEY_PAIR_NAME')) | default('patching-loop', true) }}"
+    _key_pair: "{{ key_pair_name | default('patching-demo') }}"
     _domain: "summit-demo.chrislab.dev"
     _group_hosts:
       A: ["summit-rhel-01", "summit-rhel-02", "summit-rhel-03"]
