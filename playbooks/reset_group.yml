@@ -1,11 +1,13 @@
 ---
 # Reset group: terminate EC2 instances and relaunch from base AMI.
 # After reset, the CVE will show as unmitigated again (clean slate for next cycle).
+# Finally, fires a webhook to EDA to start the next group (A->B->C->A).
 #
 # Expects:
 #   current_group: A|B|C
 #   aws_region, base_ami_id, instance_type, subnet_id, security_group_id, key_pair_name
 #   rh_org_id, rh_activation_key (for Insights registration)
+#   webhook_base_url, webhook_client_id, webhook_client_secret, webhook_path (for loop continuation)
 
 - name: Reset Group — Terminate and Relaunch from AMI
   hosts: localhost
@@ -124,3 +126,63 @@
       ansible.builtin.command: insights-client --register
       changed_when: true
       when: _rh_org_id | length > 0
+
+- name: Fire next group — close the loop
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    _current_group: "{{ current_group | upper }}"
+    _group_rotation:
+      A: B
+      B: C
+      C: A
+    _next_group: "{{ _group_rotation[_current_group] }}"
+    _stop_flag: /tmp/patching-loop-stop
+    webhook_base_url: ""
+    webhook_path: ""
+    webhook_client_id: ""
+    webhook_client_secret: ""
+
+  tasks:
+    - name: Check for stop flag
+      ansible.builtin.stat:
+        path: "{{ _stop_flag }}"
+      register: stop_flag_check
+
+    - name: Obtain OAuth token for AO webhook
+      ansible.builtin.uri:
+        url: "{{ webhook_base_url }}/api/v1/auth/token"
+        method: POST
+        body_format: form-urlencoded
+        body:
+          grant_type: client_credentials
+          client_id: "{{ webhook_client_id }}"
+          client_secret: "{{ webhook_client_secret }}"
+        validate_certs: false
+        status_code: 200
+      register: token_response
+      when: not stop_flag_check.stat.exists
+
+    - name: Fire webhook to EDA for next group
+      ansible.builtin.uri:
+        url: "{{ webhook_base_url }}/api/v1/webhooks/eda/{{ webhook_path }}"
+        method: POST
+        body_format: json
+        headers:
+          Authorization: "Bearer {{ token_response.json.access_token }}"
+          Content-Type: application/json
+        body:
+          current_group: "{{ _next_group }}"
+        validate_certs: false
+        status_code: 202
+      register: webhook_response
+      when: not stop_flag_check.stat.exists
+
+    - name: Display loop status
+      ansible.builtin.debug:
+        msg: >-
+          {{ 'Loop continues: Group ' ~ _current_group ~ ' → Group ' ~ _next_group
+             if not stop_flag_check.stat.exists
+             else 'Loop stopped at Group ' ~ _current_group ~ '. Remove ' ~ _stop_flag ~ ' and run start-loop.sh to resume.' }}

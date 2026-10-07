@@ -350,16 +350,6 @@ controller_templates:
     credentials:
       - "Loop - AWS"
       - "Loop - SSH Key"
-
-  - name: "Loop - Fire Next Group"
-    description: "Compute next group and fire webhook to EDA (closes the loop)"
-    organization: "Default"
-    job_type: "run"
-    project: "Patching Loop"
-    playbook: "playbooks/fire_next_group.yml"
-    inventory: "Patching Loop Lab"
-    ask_variables_on_launch: true
-    credentials:
       - "Loop - AO Webhook"
 
 # =============================================================================

@@ -239,25 +239,6 @@
         "x": 4400,
         "y": 400
       }
-    },
-    {
-      "id": "fire_next_group",
-      "type": "aap_job_template",
-      "name": "Fire Next Group",
-      "parameters": {
-        "diff_mode": false,
-        "extra_vars": {
-          "current_group": "${trigger.current_group}"
-        },
-        "credential_id": "beb79e87-9581-4447-873d-229755ea8a2b",
-        "integration_id": "851d4bfd-6ccb-4b46-81ec-d1cc930b87ef",
-        "job_template_name": "Loop - Fire Next Group",
-        "organization_name": "Default"
-      },
-      "position": {
-        "x": 4800,
-        "y": 400
-      }
     }
   ],
   "edges": [
@@ -305,10 +286,6 @@
     {
       "from": "soak_wait",
       "to": "reset_group"
-    },
-    {
-      "from": "reset_group",
-      "to": "fire_next_group"
     }
   ]
 }
