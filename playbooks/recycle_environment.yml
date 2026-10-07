@@ -240,26 +240,12 @@
       C: A
     _next_group: "{{ _group_rotation[_current_group] }}"
     _stop_flag: /tmp/patching-loop-stop
-    _aap_hostname: "{{ lookup('env', 'AAP_HOSTNAME') | default('https://aap.sandbox329.opentlc.com', true) }}"
-    _aap_token: "{{ lookup('env', 'AAP_TOKEN') | default(omit, true) }}"
     webhook_base_url: ""
     webhook_path: ""
     webhook_client_id: ""
     webhook_client_secret: ""
 
   tasks:
-    - name: Trigger AAP inventory sync
-      ansible.builtin.uri:
-        url: "{{ _aap_hostname }}/api/controller/v2/inventory_sources/{{ inv_source_id }}/update/"
-        method: POST
-        headers:
-          Authorization: "Bearer {{ _aap_token }}"
-        validate_certs: false
-        status_code: [200, 201, 202]
-      vars:
-        inv_source_id: "{{ lookup('pipe', 'curl -sk -H \"Authorization: Bearer ' ~ _aap_token ~ '\" \"' ~ _aap_hostname ~ '/api/controller/v2/inventory_sources/?name=AWS+EC2+Discovery\" | python3 -c \"import json,sys; print(json.load(sys.stdin)[\\\"results\\\"][0][\\\"id\\\"])\"') }}"
-      failed_when: false
-
     - name: Check for stop flag
       ansible.builtin.stat:
         path: "{{ _stop_flag }}"
