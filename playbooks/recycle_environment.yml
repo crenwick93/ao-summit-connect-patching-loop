@@ -80,10 +80,10 @@
   vars:
     _group: "{{ current_group | upper }}"
     _aws_region: "{{ aws_region | default(lookup('env', 'AWS_REGION')) | default('eu-west-1', true) }}"
-    _base_ami: "{{ base_ami_id | default(lookup('env', 'AWS_BASE_AMI_ID')) }}"
-    _instance_type: "{{ instance_type | default(lookup('env', 'AWS_INSTANCE_TYPE')) | default('t3.micro', true) }}"
-    _subnet_id: "{{ subnet_id | default(lookup('env', 'AWS_SUBNET_ID')) }}"
-    _sg_id: "{{ security_group_id | default(lookup('env', 'AWS_SECURITY_GROUP_ID')) }}"
+    _base_ami: "{{ base_ami_id | default('ami-016397d7dfea2bd03') }}"
+    _instance_type: "{{ instance_type | default('t3.micro') }}"
+    _subnet_id: "{{ subnet_id | default('subnet-0e20d6149a3cc75c3') }}"
+    _sg_id: "{{ security_group_id | default('sg-05d455584d799b076') }}"
     _key_pair: "{{ key_pair_name | default(lookup('env', 'AWS_KEY_PAIR_NAME')) | default('patching-loop', true) }}"
     _domain: "summit-demo.chrislab.dev"
     _group_hosts:
@@ -113,8 +113,8 @@
         key_name: "{{ _key_pair }}"
         vpc_subnet_id: "{{ _subnet_id }}"
         security_group: "{{ _sg_id }}"
-        network:
-          assign_public_ip: true
+        network_interfaces:
+          - assign_public_ip: true
         tags:
           Name: "{{ item }}"
           demo: patching-loop
