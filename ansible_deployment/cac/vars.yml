@@ -37,9 +37,6 @@ controller_credential_types:
         - id: webhook_base_url
           type: string
           label: "AO Base URL"
-        - id: webhook_path
-          type: string
-          label: "EDA Webhook Path (UUID from AO workflow trigger)"
         - id: webhook_client_id
           type: string
           label: "Service Account Client ID"
@@ -50,7 +47,6 @@ controller_credential_types:
     injectors:
       extra_vars:
         webhook_base_url: !unsafe "{{ webhook_base_url }}"
-        webhook_path: !unsafe "{{ webhook_path }}"
         webhook_client_id: !unsafe "{{ webhook_client_id }}"
         webhook_client_secret: !unsafe "{{ webhook_client_secret }}"
 
@@ -166,7 +162,6 @@ controller_credentials:
     credential_type: "AO Webhook Credential"
     inputs:
       webhook_base_url: "{{ ao_webhook_base_url }}"
-      webhook_path: "{{ ao_webhook_path }}"
       webhook_client_id: "{{ ao_webhook_client_id }}"
       webhook_client_secret: "{{ ao_webhook_client_secret }}"
 
@@ -420,6 +415,8 @@ controller_templates:
     playbook: "playbooks/recycle_environment.yml"
     inventory: "Patching Loop Lab"
     ask_variables_on_launch: true
+    extra_vars:
+      webhook_path: "{{ ao_webhook_path }}"
     credentials:
       - "AWS"
       - "SSH Key"
