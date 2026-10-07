@@ -286,6 +286,26 @@
       failed_when: "'confirms registration' not in retry_verify.stdout"
 
 # ---------------------------------------------------------------------------
+# Final gate — every host must be confirmed before the loop continues
+# ---------------------------------------------------------------------------
+- name: Verify all hosts registered before continuing
+  hosts: new_hosts
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: "Final verification — {{ instance_name | default(inventory_hostname) }}"
+      ansible.builtin.command: insights-client --status
+      register: final_check
+      retries: 5
+      delay: 30
+      until: "'confirms registration' in final_check.stdout"
+
+    - name: "Confirmed — {{ instance_name | default(inventory_hostname) }}"
+      ansible.builtin.debug:
+        msg: "✅ {{ instance_name | default(inventory_hostname) }} is registered with Insights"
+
+# ---------------------------------------------------------------------------
 # Sync AAP inventory + fire next group
 # ---------------------------------------------------------------------------
 - name: Sync inventory and fire next group

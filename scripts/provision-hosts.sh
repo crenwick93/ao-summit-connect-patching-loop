@@ -305,13 +305,14 @@ REGSCRPT
 
   echo "  Registering hosts (org: ${RH_ORG}, key: ${RH_AK})..."
   REG_PIDS=()
+  REG_FAILURES=0
   while IFS=: read -r rname rip; do
     [[ -z "$rname" ]] && continue
     register_one "$rname" "$rip" &
     REG_PIDS+=($!)
   done < "$IP_MAP_FILE"
 
-  for pid in "${REG_PIDS[@]}"; do wait "$pid" || true; done
+  for pid in "${REG_PIDS[@]}"; do wait "$pid" || REG_FAILURES=$((REG_FAILURES + 1)); done
   echo ""
 
   echo "  Verifying Insights registration..."
@@ -338,7 +339,49 @@ REGSCRPT
   fi
   echo ""
 
+  # ─── Final hard verification — no host left behind ───────────────────────
+  echo "  ══ Final verification (with propagation wait) ══"
+  FINAL_FAILURES=""
+  while IFS=: read -r vname vip; do
+    [[ -z "$vname" ]] && continue
+    verified=false
+    for check in 1 2 3 4 5; do
+      vresult=$(ssh $SSH_OPTS -i "$SSH_KEY" "${SSH_USER}@${vip}" \
+        "sudo insights-client --status 2>&1" 2>/dev/null || echo "error")
+      if echo "$vresult" | grep -q "confirms registration"; then
+        echo "  ✅ ${vname}: confirmed registered"
+        verified=true
+        break
+      fi
+      if [[ $check -lt 5 ]]; then
+        echo "  ⏳ ${vname}: not confirmed yet (attempt ${check}/5, waiting 30s...)"
+        sleep 30
+      fi
+    done
+    if [[ "$verified" != "true" ]]; then
+      echo "  ❌ ${vname}: FAILED — not registered after 5 verification attempts"
+      FINAL_FAILURES="${FINAL_FAILURES} ${vname}"
+    fi
+  done < "$IP_MAP_FILE"
+  echo ""
+
   rm -f "$IP_MAP_FILE"
+
+  if [[ -n "$FINAL_FAILURES" ]]; then
+    echo "╔════════════════════════════════════════════════════════════╗"
+    echo "║  ❌  PROVISIONING FAILED — HOSTS NOT REGISTERED          ║"
+    echo "╠════════════════════════════════════════════════════════════╣"
+    echo "║  The following hosts could not be verified in Insights:   ║"
+    for fname in $FINAL_FAILURES; do
+      printf "║    %-52s  ║\n" "$fname"
+    done
+    echo "║                                                          ║"
+    echo "║  SSH in and check manually:                              ║"
+    echo "║    sudo insights-client --status                         ║"
+    echo "║    sudo subscription-manager identity                    ║"
+    echo "╚════════════════════════════════════════════════════════════╝"
+    exit 1
+  fi
 fi
 
 # ─── Step 5: Sync AAP inventory ─────────────────────────────────────────────
