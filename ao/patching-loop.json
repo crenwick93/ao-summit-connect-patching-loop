@@ -1,7 +1,7 @@
 {
   "schema_version": "2.0.0",
   "name": "Patching Loop",
-  "description": "Self-perpetuating patching loop: 9 EC2s in 3 rotating groups (A/B/C). Each cycle: assess, fetch Lightspeed playbook, sync & deploy, create CR (approval gate for booth visitor), pre-check, run patch, post-check, close CR, wait, reset group, fire next group.",
+  "description": "Self-perpetuating patching loop: 9 EC2s in 3 rotating groups (A/B/C). Each cycle: assess fleet, fetch Lightspeed playbook, sync & deploy, create CR (approval gate for booth visitor), pre-check, run patch, post-check, close CR.",
   "triggers": [
     {
       "id": "trigger_eda",
@@ -196,6 +196,7 @@
         "diff_mode": false,
         "extra_vars": {
           "action": "close",
+          "current_group": "${trigger.current_group}",
           "cr_sys_id": "${create_cr.artifacts.cr_sys_id}",
           "close_notes": "Patching loop cycle for Group ${trigger.current_group} complete. All checks passed."
         },
@@ -206,37 +207,6 @@
       },
       "position": {
         "x": 3600,
-        "y": 400
-      }
-    },
-    {
-      "id": "soak_wait",
-      "type": "wait",
-      "name": "Soak (3 min)",
-      "parameters": {
-        "duration": 180
-      },
-      "position": {
-        "x": 4000,
-        "y": 400
-      }
-    },
-    {
-      "id": "reset_group",
-      "type": "aap_job_template",
-      "name": "Reset Group",
-      "parameters": {
-        "diff_mode": false,
-        "extra_vars": {
-          "current_group": "${trigger.current_group}"
-        },
-        "credential_id": "beb79e87-9581-4447-873d-229755ea8a2b",
-        "integration_id": "851d4bfd-6ccb-4b46-81ec-d1cc930b87ef",
-        "job_template_name": "Loop - Reset Group",
-        "organization_name": "Default"
-      },
-      "position": {
-        "x": 4400,
         "y": 400
       }
     }
@@ -278,14 +248,6 @@
     {
       "from": "postcheck",
       "to": "close_cr"
-    },
-    {
-      "from": "close_cr",
-      "to": "soak_wait"
-    },
-    {
-      "from": "soak_wait",
-      "to": "reset_group"
     }
   ]
 }

@@ -264,6 +264,9 @@ controller_templates:
     ask_variables_on_launch: true
     credentials:
       - "Loop - ServiceNow"
+      - "Loop - AWS"
+      - "Loop - SSH Key"
+      - "Loop - AO Webhook"
 
   - name: "Loop - Bridge AO Approval"
     description: "Bridges ServiceNow CR approval to AO workflow approval gate via AO REST API"
@@ -338,19 +341,6 @@ controller_templates:
     credentials:
       - "Loop - SSH Key"
       - "Loop - ServiceNow"
-
-  - name: "Loop - Reset Group"
-    description: "Terminate EC2 instances and relaunch from base AMI"
-    organization: "Default"
-    job_type: "run"
-    project: "Patching Loop"
-    playbook: "playbooks/reset_group.yml"
-    inventory: "Patching Loop Lab"
-    ask_variables_on_launch: true
-    credentials:
-      - "Loop - AWS"
-      - "Loop - SSH Key"
-      - "Loop - AO Webhook"
 
 # =============================================================================
 # Event-Driven Ansible
