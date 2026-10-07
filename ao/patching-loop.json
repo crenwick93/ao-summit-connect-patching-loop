@@ -56,7 +56,7 @@
         },
         "credential_id": "beb79e87-9581-4447-873d-229755ea8a2b",
         "integration_id": "851d4bfd-6ccb-4b46-81ec-d1cc930b87ef",
-        "job_template_name": "Loop - Fleet Assessment",
+        "job_template_name": "Fleet Assessment",
         "organization_name": "Default"
       },
       "position": {
@@ -102,7 +102,7 @@
         },
         "credential_id": "beb79e87-9581-4447-873d-229755ea8a2b",
         "integration_id": "851d4bfd-6ccb-4b46-81ec-d1cc930b87ef",
-        "job_template_name": "Loop - Fetch and Commit",
+        "job_template_name": "Fetch and Commit",
         "organization_name": "Default"
       },
       "position": {
@@ -124,7 +124,7 @@
         },
         "credential_id": "beb79e87-9581-4447-873d-229755ea8a2b",
         "integration_id": "851d4bfd-6ccb-4b46-81ec-d1cc930b87ef",
-        "job_template_name": "Loop - Sync and Deploy",
+        "job_template_name": "Sync and Deploy",
         "organization_name": "Default"
       },
       "position": {
@@ -146,7 +146,7 @@
         },
         "credential_id": "beb79e87-9581-4447-873d-229755ea8a2b",
         "integration_id": "851d4bfd-6ccb-4b46-81ec-d1cc930b87ef",
-        "job_template_name": "Loop - Manage Change Request",
+        "job_template_name": "Manage Change Request",
         "organization_name": "Default"
       },
       "position": {
@@ -180,7 +180,7 @@
         },
         "credential_id": "beb79e87-9581-4447-873d-229755ea8a2b",
         "integration_id": "851d4bfd-6ccb-4b46-81ec-d1cc930b87ef",
-        "job_template_name": "Loop - Pre-check",
+        "job_template_name": "Pre-check",
         "organization_name": "Default"
       },
       "position": {
@@ -223,7 +223,7 @@
         },
         "credential_id": "beb79e87-9581-4447-873d-229755ea8a2b",
         "integration_id": "851d4bfd-6ccb-4b46-81ec-d1cc930b87ef",
-        "job_template_name": "Loop - Post-check",
+        "job_template_name": "Post-check",
         "organization_name": "Default"
       },
       "position": {
@@ -244,7 +244,7 @@
         },
         "credential_id": "beb79e87-9581-4447-873d-229755ea8a2b",
         "integration_id": "851d4bfd-6ccb-4b46-81ec-d1cc930b87ef",
-        "job_template_name": "Loop - Manage Change Request",
+        "job_template_name": "Manage Change Request",
         "organization_name": "Default"
       },
       "position": {
@@ -267,7 +267,7 @@
         },
         "credential_id": "beb79e87-9581-4447-873d-229755ea8a2b",
         "integration_id": "851d4bfd-6ccb-4b46-81ec-d1cc930b87ef",
-        "job_template_name": "Loop - Fetch and Commit",
+        "job_template_name": "Fetch and Commit",
         "organization_name": "Default"
       },
       "position": {
@@ -290,7 +290,7 @@
         },
         "credential_id": "beb79e87-9581-4447-873d-229755ea8a2b",
         "integration_id": "851d4bfd-6ccb-4b46-81ec-d1cc930b87ef",
-        "job_template_name": "Loop - Sync and Deploy",
+        "job_template_name": "Sync and Deploy",
         "organization_name": "Default"
       },
       "position": {
@@ -311,7 +311,7 @@
         },
         "credential_id": "beb79e87-9581-4447-873d-229755ea8a2b",
         "integration_id": "851d4bfd-6ccb-4b46-81ec-d1cc930b87ef",
-        "job_template_name": "Loop - Manage Change Request",
+        "job_template_name": "Manage Change Request",
         "organization_name": "Default"
       },
       "position": {
@@ -345,7 +345,7 @@
         },
         "credential_id": "beb79e87-9581-4447-873d-229755ea8a2b",
         "integration_id": "851d4bfd-6ccb-4b46-81ec-d1cc930b87ef",
-        "job_template_name": "Loop - Pre-check",
+        "job_template_name": "Pre-check",
         "organization_name": "Default"
       },
       "position": {
@@ -388,7 +388,7 @@
         },
         "credential_id": "beb79e87-9581-4447-873d-229755ea8a2b",
         "integration_id": "851d4bfd-6ccb-4b46-81ec-d1cc930b87ef",
-        "job_template_name": "Loop - Post-check",
+        "job_template_name": "Post-check",
         "organization_name": "Default"
       },
       "position": {
@@ -409,7 +409,7 @@
         },
         "credential_id": "beb79e87-9581-4447-873d-229755ea8a2b",
         "integration_id": "851d4bfd-6ccb-4b46-81ec-d1cc930b87ef",
-        "job_template_name": "Loop - Manage Change Request",
+        "job_template_name": "Manage Change Request",
         "organization_name": "Default"
       },
       "position": {
@@ -432,7 +432,7 @@
         },
         "credential_id": "beb79e87-9581-4447-873d-229755ea8a2b",
         "integration_id": "851d4bfd-6ccb-4b46-81ec-d1cc930b87ef",
-        "job_template_name": "Loop - Manage Change Request",
+        "job_template_name": "Manage Change Request",
         "organization_name": "Default"
       },
       "position": {

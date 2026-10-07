@@ -106,7 +106,7 @@ controller_credential_types:
 # Credentials
 # -----------------------------------------------------------------------------
 controller_credentials:
-  - name: "Loop - SSH Key"
+  - name: "SSH Key"
     description: "SSH access to patching loop EC2 instances (ec2-user)"
     organization: "Default"
     credential_type: "Machine"
@@ -114,7 +114,7 @@ controller_credentials:
       username: ec2-user
       ssh_key_data: "{{ probe_ssh_key }}"
 
-  - name: "Loop - AWS"
+  - name: "AWS"
     description: "AWS credentials for dynamic EC2 inventory and instance management"
     organization: "Default"
     credential_type: "Amazon Web Services"
@@ -122,7 +122,7 @@ controller_credentials:
       username: "{{ aws_access_key }}"
       password: "{{ aws_secret_key }}"
 
-  - name: "Loop - ServiceNow"
+  - name: "ServiceNow"
     description: "ServiceNow developer instance for ITSM integration"
     organization: "Default"
     credential_type: "ServiceNow Credential"
@@ -131,7 +131,7 @@ controller_credentials:
       SN_USERNAME: "{{ servicenow_username }}"
       SN_PASSWORD: "{{ servicenow_password }}"
 
-  - name: "Loop - AAP Controller"
+  - name: "AAP Controller"
     description: "Controller credential for internal workflow operations"
     organization: "Default"
     credential_type: "Red Hat Ansible Automation Platform"
@@ -140,7 +140,7 @@ controller_credentials:
       oauth_token: "{{ aap_token }}"
       verify_ssl: "{{ aap_validate_certs }}"
 
-  - name: "Loop - AO Webhook"
+  - name: "AO Webhook"
     description: "OAuth2 credentials for AO EDA trigger endpoint"
     organization: "Default"
     credential_type: "AO Webhook Credential"
@@ -149,7 +149,7 @@ controller_credentials:
       webhook_client_id: "{{ ao_webhook_client_id }}"
       webhook_client_secret: "{{ ao_webhook_client_secret }}"
 
-  - name: "Loop - AO API"
+  - name: "AO API"
     description: "Service account for AO REST API — bridges SNOW CR approval to AO approval gate"
     organization: "Default"
     credential_type: "AO API Credential"
@@ -158,14 +158,14 @@ controller_credentials:
       ao_sa_client_secret: "{{ ao_webhook_client_secret }}"
       ao_base_url: "{{ ao_webhook_base_url }}"
 
-  - name: "Loop - GitHub Token"
+  - name: "GitHub Token"
     description: "GitHub PAT for committing Lightspeed-fetched playbooks"
     organization: "Default"
     credential_type: "GitHub API Token"
     inputs:
       github_token: "{{ github_token }}"
 
-  - name: "Loop - Lightspeed API"
+  - name: "Lightspeed API"
     description: "OAuth2 credentials for Lightspeed Remediations API"
     organization: "Default"
     credential_type: "Lightspeed API Credential"
@@ -185,7 +185,7 @@ controller_projects:
     scm_branch: "main"
     scm_update_on_launch: true
 
-  - name: "Loop - Lightspeed-Playbooks"
+  - name: "Lightspeed-Playbooks"
     description: "Dynamically fetched patching playbooks from Red Hat Lightspeed"
     organization: "Default"
     scm_type: "git"
@@ -205,10 +205,10 @@ controller_inventories:
 # Inventory Sources (dynamic — AWS EC2)
 # -----------------------------------------------------------------------------
 controller_inventory_sources:
-  - name: "Loop - AWS EC2 Discovery"
+  - name: "AWS EC2 Discovery"
     inventory: "Patching Loop Lab"
     source: "ec2"
-    credential: "Loop - AWS"
+    credential: "AWS"
     overwrite: true
     update_on_launch: true
     source_vars:
@@ -231,7 +231,7 @@ controller_inventory_sources:
 # Job Templates (12 — matching AO workflow nodes)
 # -----------------------------------------------------------------------------
 controller_templates:
-  - name: "Loop - Trigger AO Workflow"
+  - name: "Trigger AO Workflow"
     description: "EDA-to-AO bridge: OAuth2 token + POST to AO EDA trigger endpoint"
     organization: "Default"
     job_type: "run"
@@ -240,9 +240,9 @@ controller_templates:
     inventory: "Patching Loop Lab"
     ask_variables_on_launch: true
     credentials:
-      - "Loop - AO Webhook"
+      - "AO Webhook"
 
-  - name: "Loop - Fleet Assessment"
+  - name: "Fleet Assessment"
     description: "Verify group hosts are alive and reachable"
     organization: "Default"
     job_type: "run"
@@ -252,9 +252,9 @@ controller_templates:
     ask_variables_on_launch: true
     ask_limit_on_launch: true
     credentials:
-      - "Loop - SSH Key"
+      - "SSH Key"
 
-  - name: "Loop - Manage Change Request"
+  - name: "Manage Change Request"
     description: "Create, update, review, or close change requests in ServiceNow"
     organization: "Default"
     job_type: "run"
@@ -263,9 +263,9 @@ controller_templates:
     inventory: "Patching Loop Lab"
     ask_variables_on_launch: true
     credentials:
-      - "Loop - ServiceNow"
+      - "ServiceNow"
 
-  - name: "Loop - Bridge AO Approval"
+  - name: "Bridge AO Approval"
     description: "Bridges ServiceNow CR approval to AO workflow approval gate via AO REST API"
     organization: "Default"
     job_type: "run"
@@ -274,9 +274,9 @@ controller_templates:
     inventory: "Patching Loop Lab"
     ask_variables_on_launch: true
     credentials:
-      - "Loop - AO API"
+      - "AO API"
 
-  - name: "Loop - Fetch and Commit"
+  - name: "Fetch and Commit"
     description: "Fetches patching playbook from Lightspeed Remediations API and commits to GitHub"
     organization: "Default"
     job_type: "run"
@@ -285,10 +285,10 @@ controller_templates:
     inventory: "Patching Loop Lab"
     ask_variables_on_launch: true
     credentials:
-      - "Loop - GitHub Token"
-      - "Loop - Lightspeed API"
+      - "GitHub Token"
+      - "Lightspeed API"
 
-  - name: "Loop - Sync and Deploy"
+  - name: "Sync and Deploy"
     description: "Syncs Lightspeed project, creates scoped job template for the fetched playbook"
     organization: "Default"
     job_type: "run"
@@ -297,11 +297,11 @@ controller_templates:
     inventory: "Patching Loop Lab"
     ask_variables_on_launch: true
     credentials:
-      - "Loop - SSH Key"
-      - "Loop - AAP Controller"
-      - "Loop - ServiceNow"
+      - "SSH Key"
+      - "AAP Controller"
+      - "ServiceNow"
 
-  - name: "Loop - Pre-check"
+  - name: "Pre-check"
     description: "System readiness checks before patching"
     organization: "Default"
     job_type: "run"
@@ -311,10 +311,10 @@ controller_templates:
     ask_variables_on_launch: true
     ask_limit_on_launch: true
     credentials:
-      - "Loop - SSH Key"
-      - "Loop - ServiceNow"
+      - "SSH Key"
+      - "ServiceNow"
 
-  - name: "Loop - Run Mitigation"
+  - name: "Run Mitigation"
     description: "Apply PwnKit (CVE-2021-4034) systemtap mitigation (fallback)"
     organization: "Default"
     job_type: "run"
@@ -324,9 +324,9 @@ controller_templates:
     ask_variables_on_launch: true
     ask_limit_on_launch: true
     credentials:
-      - "Loop - SSH Key"
+      - "SSH Key"
 
-  - name: "Loop - Post-check"
+  - name: "Post-check"
     description: "Post-remediation validation"
     organization: "Default"
     job_type: "run"
@@ -336,10 +336,10 @@ controller_templates:
     ask_variables_on_launch: true
     ask_limit_on_launch: true
     credentials:
-      - "Loop - SSH Key"
-      - "Loop - ServiceNow"
+      - "SSH Key"
+      - "ServiceNow"
 
-  - name: "Loop - Recycle Environment"
+  - name: "Recycle Environment"
     description: "Soak, reset EC2 instances, register with Insights, and fire next group webhook"
     organization: "Default"
     job_type: "run"
@@ -348,9 +348,9 @@ controller_templates:
     inventory: "Patching Loop Lab"
     ask_variables_on_launch: true
     credentials:
-      - "Loop - AWS"
-      - "Loop - SSH Key"
-      - "Loop - AO Webhook"
+      - "AWS"
+      - "SSH Key"
+      - "AO Webhook"
 
 # =============================================================================
 # Event-Driven Ansible
@@ -403,7 +403,7 @@ eda_projects:
 # EDA Credentials
 # -----------------------------------------------------------------------------
 eda_credentials:
-  - name: "Loop - AAP Controller Token"
+  - name: "AAP Controller Token"
     description: "Controller credential so EDA can launch job templates"
     credential_type: "Red Hat Ansible Automation Platform"
     organization: "Default"
@@ -412,7 +412,7 @@ eda_credentials:
       oauth_token: "{{ aap_token }}"
       verify_ssl: false
 
-  - name: "Loop - ServiceNow EDA"
+  - name: "ServiceNow EDA"
     description: "ServiceNow credentials for EDA CR polling source"
     credential_type: "ServiceNow Credential"
     organization: "Default"
@@ -421,7 +421,7 @@ eda_credentials:
       SN_USERNAME: "{{ servicenow_username }}"
       SN_PASSWORD: "{{ servicenow_password }}"
 
-  - name: "Loop - Webhook Token"
+  - name: "Webhook Token"
     description: "Token auth for patching loop webhook events"
     credential_type: "Token Event Stream"
     organization: "Default"
@@ -436,7 +436,7 @@ eda_credentials:
 eda_event_streams:
   - name: "Patching Loop Events"
     organization: "Default"
-    credential_name: "Loop - Webhook Token"
+    credential_name: "Webhook Token"
     event_stream_type: token
     forward_events: true
     test_mode: false
@@ -458,5 +458,5 @@ eda_rulebook_activations:
       - source_name: loop_webhook
         event_stream_name: "Patching Loop Events"
     eda_credentials:
-      - "Loop - AAP Controller Token"
-      - "Loop - ServiceNow EDA"
+      - "AAP Controller Token"
+      - "ServiceNow EDA"

@@ -13,7 +13,7 @@
   tasks:
     - name: Sync Lightspeed-Playbooks project
       ansible.controller.project_update:
-        name: Loop - Lightspeed-Playbooks
+        name: Lightspeed-Playbooks
         wait: true
         timeout: 180
         request_timeout: 120
@@ -21,15 +21,15 @@
 
     - name: Create patching job template from Lightspeed playbook
       ansible.controller.job_template:
-        name: "Loop - Patch {{ _cve_id }}"
+        name: "Patch {{ _cve_id }}"
         job_type: run
-        project: "Loop - Lightspeed-Playbooks"
+        project: "Lightspeed-Playbooks"
         playbook: "{{ _playbook_filename }}"
         inventory: "Patching Loop Lab"
         limit: "{{ _target_hosts }}"
         become_enabled: true
         credentials:
-          - "Loop - SSH Key"
+          - "SSH Key"
         extra_vars:
           ansible_ssh_retries: 10
           ansible_ssh_timeout: 30
@@ -41,13 +41,13 @@
     - name: Display sync result
       ansible.builtin.debug:
         msg: |
-          Patching template "Loop - Patch {{ _cve_id }}" created.
+          Patching template "Patch {{ _cve_id }}" created.
           Targeting: {{ _target_hosts }}
           Playbook synced from Lightspeed via GitHub.
 
     - name: Publish template details for AO
       ansible.builtin.set_stats:
         data:
-          template_name: "Loop - Patch {{ _cve_id }}"
+          template_name: "Patch {{ _cve_id }}"
           template_id: "{{ jt_result.id }}"
           status: ready

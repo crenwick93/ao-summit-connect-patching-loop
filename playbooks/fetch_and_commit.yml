@@ -64,8 +64,8 @@
 
     - name: Find exact name match
       ansible.builtin.set_fact:
-        _rem_name: "Patching Loop - {{ _cve_id }}"
-        _exact_match: "{{ all_remediations.json.data | selectattr('name', 'equalto', 'Patching Loop - ' ~ _cve_id) | list }}"
+        _rem_name: "Patching {{ _cve_id }}"
+        _exact_match: "{{ all_remediations.json.data | selectattr('name', 'equalto', 'Patching ' ~ _cve_id) | list }}"
 
     - name: Create remediation via Insights API
       ansible.builtin.uri:
