@@ -36,6 +36,15 @@
           Hosts alive ({{ _host_count }}): {{ _checked_hosts }}
           All hosts reachable ✓
 
+    - name: Determine remediation route
+      ansible.builtin.set_fact:
+        _route: "{{ force_route | default('') }}"
+
+    - name: Auto-detect route when not forced
+      ansible.builtin.set_fact:
+        _route: "patch"
+      when: _route | length == 0
+
     - name: Publish fleet assessment artifacts
       ansible.builtin.set_stats:
         data:
@@ -43,4 +52,8 @@
           target_hosts: "{{ _checked_hosts }}"
           host_count: "{{ _host_count }}"
           fleet_healthy: true
+          remediation_route: "{{ _route }}"
+          advisory_available: "{{ 'true' if _route in ['patch', 'mitigate'] else 'false' }}"
+          cve_severity: "7.8"
+          cve_description: "A local privilege escalation vulnerability was found in polkit's pkexec utility."
         aggregate: false

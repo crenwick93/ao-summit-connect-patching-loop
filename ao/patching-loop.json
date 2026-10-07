@@ -1,7 +1,7 @@
 {
   "schema_version": "2.0.0",
   "name": "Patching Loop",
-  "description": "Self-perpetuating patching loop: 9 EC2s in 3 rotating groups (A/B/C). Each cycle: assess fleet, fetch Lightspeed playbook, sync & deploy, create CR (approval gate for booth visitor), pre-check, run patch, post-check, close CR.",
+  "description": "Self-perpetuating patching loop: 9 EC2s in 3 rotating groups (A/B/C). Each cycle: assess fleet, route to mitigation or patching, fetch Lightspeed playbook, create CR with approval gate, pre-check, remediate, post-check, close CR.",
   "triggers": [
     {
       "id": "trigger_eda",
@@ -24,7 +24,7 @@
       },
       "position": {
         "x": 0,
-        "y": 400
+        "y": 600
       }
     }
   ],
@@ -46,19 +46,44 @@
       },
       "position": {
         "x": 400,
-        "y": 400
+        "y": 600
       }
     },
     {
-      "id": "fetch_and_commit",
+      "id": "route_switch",
+      "type": "switch",
+      "name": "Remediation Route",
+      "parameters": {
+        "cases": [
+          {
+            "port": "case_mitigate",
+            "label": "Mitigate",
+            "condition": "${fleet_assessment.artifacts.remediation_route} == 'mitigate'"
+          },
+          {
+            "port": "case_patch",
+            "label": "Patch",
+            "condition": "${fleet_assessment.artifacts.remediation_route} == 'patch'"
+          }
+        ]
+      },
+      "position": {
+        "x": 800,
+        "y": 600
+      }
+    },
+
+    {
+      "id": "fetch_mitigate",
       "type": "aap_job_template",
-      "name": "Fetch Patching Playbook",
+      "name": "Fetch Mitigate Playbook",
       "parameters": {
         "diff_mode": false,
         "extra_vars": {
           "cve_id": "CVE-2021-4034",
           "current_group": "${trigger.current_group}",
-          "target_hosts": "${fleet_assessment.artifacts.target_hosts}"
+          "target_hosts": "${fleet_assessment.artifacts.target_hosts}",
+          "advisory_available": "mitigate"
         },
         "credential_id": "beb79e87-9581-4447-873d-229755ea8a2b",
         "integration_id": "851d4bfd-6ccb-4b46-81ec-d1cc930b87ef",
@@ -66,21 +91,21 @@
         "organization_name": "Default"
       },
       "position": {
-        "x": 800,
-        "y": 400
+        "x": 1200,
+        "y": 200
       }
     },
     {
-      "id": "sync_and_deploy",
+      "id": "deploy_mitigate",
       "type": "aap_job_template",
-      "name": "Sync & Deploy",
+      "name": "Sync & Deploy (Mitigate)",
       "parameters": {
         "diff_mode": false,
         "extra_vars": {
           "cve_id": "CVE-2021-4034",
           "current_group": "${trigger.current_group}",
           "target_hosts": "${fleet_assessment.artifacts.target_hosts}",
-          "playbook_filename": "${fetch_and_commit.artifacts.playbook_filename}"
+          "remediation_route": "mitigate"
         },
         "credential_id": "beb79e87-9581-4447-873d-229755ea8a2b",
         "integration_id": "851d4bfd-6ccb-4b46-81ec-d1cc930b87ef",
@@ -88,8 +113,174 @@
         "organization_name": "Default"
       },
       "position": {
+        "x": 1600,
+        "y": 200
+      }
+    },
+    {
+      "id": "create_emergency_cr",
+      "type": "aap_job_template",
+      "name": "Create Emergency CR",
+      "parameters": {
+        "diff_mode": false,
+        "extra_vars": {
+          "action": "create",
+          "current_group": "${trigger.current_group}",
+          "target_hosts": "${fleet_assessment.artifacts.target_hosts}",
+          "cr_type": "emergency"
+        },
+        "credential_id": "beb79e87-9581-4447-873d-229755ea8a2b",
+        "integration_id": "851d4bfd-6ccb-4b46-81ec-d1cc930b87ef",
+        "job_template_name": "Loop - Manage Change Request",
+        "organization_name": "Default"
+      },
+      "position": {
+        "x": 2000,
+        "y": 200
+      }
+    },
+    {
+      "id": "approval_mitigate",
+      "type": "approval",
+      "name": "Approve Mitigation",
+      "parameters": {
+        "prompt": "Emergency mitigation for Group ${trigger.current_group} — review the Lightspeed-generated mitigation playbook before execution"
+      },
+      "position": {
+        "x": 2400,
+        "y": 200
+      }
+    },
+    {
+      "id": "precheck_mitigate",
+      "type": "aap_job_template",
+      "name": "Pre-check (Mitigate)",
+      "parameters": {
+        "limit": "tag_group_${trigger.current_group}",
+        "diff_mode": false,
+        "extra_vars": {
+          "current_group": "${trigger.current_group}",
+          "cr_sys_id": "${create_emergency_cr.artifacts.cr_sys_id}",
+          "remediation_route": "mitigate"
+        },
+        "credential_id": "beb79e87-9581-4447-873d-229755ea8a2b",
+        "integration_id": "851d4bfd-6ccb-4b46-81ec-d1cc930b87ef",
+        "job_template_name": "Loop - Pre-check",
+        "organization_name": "Default"
+      },
+      "position": {
+        "x": 2800,
+        "y": 200
+      }
+    },
+    {
+      "id": "run_mitigate",
+      "type": "aap_job_template",
+      "name": "Run Mitigation",
+      "parameters": {
+        "limit": "tag_group_${trigger.current_group}",
+        "diff_mode": false,
+        "extra_vars": {
+          "current_group": "${trigger.current_group}",
+          "cr_sys_id": "${create_emergency_cr.artifacts.cr_sys_id}"
+        },
+        "credential_id": "beb79e87-9581-4447-873d-229755ea8a2b",
+        "integration_id": "851d4bfd-6ccb-4b46-81ec-d1cc930b87ef",
+        "job_template_name": "${deploy_mitigate.artifacts.template_name}",
+        "organization_name": "Default"
+      },
+      "position": {
+        "x": 3200,
+        "y": 200
+      }
+    },
+    {
+      "id": "postcheck_mitigate",
+      "type": "aap_job_template",
+      "name": "Post-check (Mitigate)",
+      "parameters": {
+        "limit": "tag_group_${trigger.current_group}",
+        "diff_mode": false,
+        "extra_vars": {
+          "current_group": "${trigger.current_group}",
+          "cr_sys_id": "${create_emergency_cr.artifacts.cr_sys_id}",
+          "remediation_route": "mitigate"
+        },
+        "credential_id": "beb79e87-9581-4447-873d-229755ea8a2b",
+        "integration_id": "851d4bfd-6ccb-4b46-81ec-d1cc930b87ef",
+        "job_template_name": "Loop - Post-check",
+        "organization_name": "Default"
+      },
+      "position": {
+        "x": 3600,
+        "y": 200
+      }
+    },
+    {
+      "id": "close_cr_mitigate",
+      "type": "aap_job_template",
+      "name": "Close CR (Mitigate)",
+      "parameters": {
+        "diff_mode": false,
+        "extra_vars": {
+          "action": "close",
+          "cr_sys_id": "${create_emergency_cr.artifacts.cr_sys_id}",
+          "close_notes": "Emergency mitigation for Group ${trigger.current_group} complete. All checks passed."
+        },
+        "credential_id": "beb79e87-9581-4447-873d-229755ea8a2b",
+        "integration_id": "851d4bfd-6ccb-4b46-81ec-d1cc930b87ef",
+        "job_template_name": "Loop - Manage Change Request",
+        "organization_name": "Default"
+      },
+      "position": {
+        "x": 4000,
+        "y": 200
+      }
+    },
+
+    {
+      "id": "fetch_patch",
+      "type": "aap_job_template",
+      "name": "Fetch Patch Playbook",
+      "parameters": {
+        "diff_mode": false,
+        "extra_vars": {
+          "cve_id": "CVE-2021-4034",
+          "current_group": "${trigger.current_group}",
+          "target_hosts": "${fleet_assessment.artifacts.target_hosts}",
+          "advisory_available": "patching"
+        },
+        "credential_id": "beb79e87-9581-4447-873d-229755ea8a2b",
+        "integration_id": "851d4bfd-6ccb-4b46-81ec-d1cc930b87ef",
+        "job_template_name": "Loop - Fetch and Commit",
+        "organization_name": "Default"
+      },
+      "position": {
         "x": 1200,
-        "y": 400
+        "y": 600
+      }
+    },
+    {
+      "id": "deploy_patch",
+      "type": "aap_job_template",
+      "name": "Sync & Deploy (Patch)",
+      "parameters": {
+        "diff_mode": false,
+        "extra_vars": {
+          "cve_id": "CVE-2021-4034",
+          "current_group": "${trigger.current_group}",
+          "target_hosts": "${fleet_assessment.artifacts.target_hosts}",
+          "playbook_filename": "${fetch_patch.artifacts.playbook_filename}",
+          "remediation_route": "patching"
+        },
+        "credential_id": "beb79e87-9581-4447-873d-229755ea8a2b",
+        "integration_id": "851d4bfd-6ccb-4b46-81ec-d1cc930b87ef",
+        "job_template_name": "Loop - Sync and Deploy",
+        "organization_name": "Default"
+      },
+      "position": {
+        "x": 1600,
+        "y": 600
       }
     },
     {
@@ -109,32 +300,33 @@
         "organization_name": "Default"
       },
       "position": {
-        "x": 1600,
-        "y": 400
+        "x": 2000,
+        "y": 600
       }
     },
     {
-      "id": "approval_gate",
+      "id": "approval_patch",
       "type": "approval",
       "name": "Approve Patching",
       "parameters": {
         "prompt": "Booth visitor: click Implement in ServiceNow to approve patching for Group ${trigger.current_group}"
       },
       "position": {
-        "x": 2000,
-        "y": 400
+        "x": 2400,
+        "y": 600
       }
     },
     {
-      "id": "precheck",
+      "id": "precheck_patch",
       "type": "aap_job_template",
-      "name": "Pre-check",
+      "name": "Pre-check (Patch)",
       "parameters": {
         "limit": "tag_group_${trigger.current_group}",
         "diff_mode": false,
         "extra_vars": {
           "current_group": "${trigger.current_group}",
-          "cr_sys_id": "${create_cr.artifacts.cr_sys_id}"
+          "cr_sys_id": "${create_cr.artifacts.cr_sys_id}",
+          "remediation_route": "patching"
         },
         "credential_id": "beb79e87-9581-4447-873d-229755ea8a2b",
         "integration_id": "851d4bfd-6ccb-4b46-81ec-d1cc930b87ef",
@@ -142,8 +334,8 @@
         "organization_name": "Default"
       },
       "position": {
-        "x": 2400,
-        "y": 400
+        "x": 2800,
+        "y": 600
       }
     },
     {
@@ -159,24 +351,25 @@
         },
         "credential_id": "beb79e87-9581-4447-873d-229755ea8a2b",
         "integration_id": "851d4bfd-6ccb-4b46-81ec-d1cc930b87ef",
-        "job_template_name": "${sync_and_deploy.artifacts.template_name}",
+        "job_template_name": "${deploy_patch.artifacts.template_name}",
         "organization_name": "Default"
       },
       "position": {
-        "x": 2800,
-        "y": 400
+        "x": 3200,
+        "y": 600
       }
     },
     {
-      "id": "postcheck",
+      "id": "postcheck_patch",
       "type": "aap_job_template",
-      "name": "Post-check",
+      "name": "Post-check (Patch)",
       "parameters": {
         "limit": "tag_group_${trigger.current_group}",
         "diff_mode": false,
         "extra_vars": {
           "current_group": "${trigger.current_group}",
-          "cr_sys_id": "${create_cr.artifacts.cr_sys_id}"
+          "cr_sys_id": "${create_cr.artifacts.cr_sys_id}",
+          "remediation_route": "patching"
         },
         "credential_id": "beb79e87-9581-4447-873d-229755ea8a2b",
         "integration_id": "851d4bfd-6ccb-4b46-81ec-d1cc930b87ef",
@@ -184,14 +377,14 @@
         "organization_name": "Default"
       },
       "position": {
-        "x": 3200,
-        "y": 400
+        "x": 3600,
+        "y": 600
       }
     },
     {
-      "id": "close_cr",
+      "id": "close_cr_patch",
       "type": "aap_job_template",
-      "name": "Close Change Request",
+      "name": "Close CR (Patch)",
       "parameters": {
         "diff_mode": false,
         "extra_vars": {
@@ -205,8 +398,30 @@
         "organization_name": "Default"
       },
       "position": {
-        "x": 3600,
-        "y": 400
+        "x": 4000,
+        "y": 600
+      }
+    },
+
+    {
+      "id": "update_cr_skip",
+      "type": "aap_job_template",
+      "name": "Update CR (No Remediation)",
+      "parameters": {
+        "diff_mode": false,
+        "extra_vars": {
+          "action": "update",
+          "cr_sys_id": "${create_cr.artifacts.cr_sys_id}",
+          "work_notes": "[AUTOMATED] No patch or mitigation available for CVE-2021-4034 on Group ${trigger.current_group}. Hosts: ${fleet_assessment.artifacts.target_hosts}. This group will be reassessed in the next cycle."
+        },
+        "credential_id": "beb79e87-9581-4447-873d-229755ea8a2b",
+        "integration_id": "851d4bfd-6ccb-4b46-81ec-d1cc930b87ef",
+        "job_template_name": "Loop - Manage Change Request",
+        "organization_name": "Default"
+      },
+      "position": {
+        "x": 1200,
+        "y": 1000
       }
     }
   ],
@@ -217,36 +432,83 @@
     },
     {
       "from": "fleet_assessment",
-      "to": "fetch_and_commit"
+      "to": "route_switch"
+    },
+
+    {
+      "from": "route_switch",
+      "to": "fetch_mitigate",
+      "from_port": "case_mitigate"
     },
     {
-      "from": "fetch_and_commit",
-      "to": "sync_and_deploy"
+      "from": "fetch_mitigate",
+      "to": "deploy_mitigate"
     },
     {
-      "from": "sync_and_deploy",
+      "from": "deploy_mitigate",
+      "to": "create_emergency_cr"
+    },
+    {
+      "from": "create_emergency_cr",
+      "to": "approval_mitigate"
+    },
+    {
+      "from": "approval_mitigate",
+      "to": "precheck_mitigate",
+      "from_port": "approved"
+    },
+    {
+      "from": "precheck_mitigate",
+      "to": "run_mitigate"
+    },
+    {
+      "from": "run_mitigate",
+      "to": "postcheck_mitigate"
+    },
+    {
+      "from": "postcheck_mitigate",
+      "to": "close_cr_mitigate"
+    },
+
+    {
+      "from": "route_switch",
+      "to": "fetch_patch",
+      "from_port": "case_patch"
+    },
+    {
+      "from": "fetch_patch",
+      "to": "deploy_patch"
+    },
+    {
+      "from": "deploy_patch",
       "to": "create_cr"
     },
     {
       "from": "create_cr",
-      "to": "approval_gate"
+      "to": "approval_patch"
     },
     {
-      "from": "approval_gate",
-      "to": "precheck",
+      "from": "approval_patch",
+      "to": "precheck_patch",
       "from_port": "approved"
     },
     {
-      "from": "precheck",
+      "from": "precheck_patch",
       "to": "run_patch"
     },
     {
       "from": "run_patch",
-      "to": "postcheck"
+      "to": "postcheck_patch"
     },
     {
-      "from": "postcheck",
-      "to": "close_cr"
+      "from": "postcheck_patch",
+      "to": "close_cr_patch"
+    },
+
+    {
+      "from": "route_switch",
+      "to": "update_cr_skip",
+      "from_port": "default"
     }
   ]
 }
