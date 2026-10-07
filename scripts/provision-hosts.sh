@@ -53,17 +53,19 @@ RH_AK="${RH_ACTIVATION_KEY:-}"
 
 SSH_OPTS="-o StrictHostKeyChecking=no -o ConnectTimeout=10 -o BatchMode=yes"
 
-declare -A GROUP_HOSTS
-GROUP_HOSTS[A]="summit-rhel-01 summit-rhel-02 summit-rhel-03"
-GROUP_HOSTS[B]="summit-rhel-04 summit-rhel-05 summit-rhel-06"
-GROUP_HOSTS[C]="summit-rhel-07 summit-rhel-08 summit-rhel-09"
+GROUP_A="summit-rhel-01 summit-rhel-02 summit-rhel-03"
+GROUP_B="summit-rhel-04 summit-rhel-05 summit-rhel-06"
+GROUP_C="summit-rhel-07 summit-rhel-08 summit-rhel-09"
 
-ALL_NODES=()
-for g in A B C; do
-  for h in ${GROUP_HOSTS[$g]}; do
-    ALL_NODES+=("$h")
-  done
-done
+hosts_for_group() {
+  case "$1" in
+    A) echo "$GROUP_A" ;;
+    B) echo "$GROUP_B" ;;
+    C) echo "$GROUP_C" ;;
+  esac
+}
+
+ALL_NODES=($GROUP_A $GROUP_B $GROUP_C)
 
 if [[ -z "$RH_ORG" || -z "$RH_AK" ]]; then
   echo "WARNING: RH_ORG_ID / RH_ACTIVATION_KEY not set in .env"
@@ -166,7 +168,7 @@ UD_TMPFILE=$(mktemp)
 trap "rm -f '${UD_TMPFILE}'" EXIT
 
 for GROUP in A B C; do
-  for HOST_NAME in ${GROUP_HOSTS[$GROUP]}; do
+  for HOST_NAME in $(hosts_for_group "$GROUP"); do
     fqdn="${HOST_NAME}.${DOMAIN}"
 
     cat > "$UD_TMPFILE" <<USERDATA

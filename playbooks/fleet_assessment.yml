@@ -25,8 +25,8 @@
   run_once: true
 
   vars:
-    _checked_hosts: "{{ groups['all'] | join(', ') }}"
-    _host_count: "{{ groups['all'] | length }}"
+    _checked_hosts: "{{ ansible_play_hosts_all | join(', ') }}"
+    _host_count: "{{ ansible_play_hosts_all | length }}"
 
   tasks:
     - name: Display fleet assessment summary
