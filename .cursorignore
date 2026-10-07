@@ -1,0 +1,3 @@
+# Secrets — never read by AI
+.env
+*.pem

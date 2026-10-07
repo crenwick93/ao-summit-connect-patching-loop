@@ -1,0 +1,62 @@
+---
+# Patching Loop EDA Rulebook
+#
+# Two rulesets:
+#   1. Webhook trigger — receives webhook from start-loop.sh or fire_next_group.yml
+#      with current_group payload. Triggers the AO patching workflow.
+#   2. SNOW CR bridge — polls change_request table for CRs with "Patching Loop"
+#      in description. When state = Implement (-1), bridges to AO approval gate.
+#
+# Requires ServiceNow DE (quay.io/crenwick93/snow-de:latest) for the
+# servicenow.itsm.records source plugin.
+
+- name: Patching Loop Trigger
+  hosts: all
+  sources:
+    - name: loop_webhook
+      ansible.eda.webhook:
+        host: 0.0.0.0
+        port: 5000
+  rules:
+    - name: Group webhook received — trigger AO patching workflow
+      condition: >-
+        event.payload.payload.current_group is defined
+      action:
+        run_job_template:
+          name: "Loop - Trigger AO Workflow"
+          organization: Default
+          job_args:
+            extra_vars:
+              webhook_path: "{{ webhook_path }}"
+              event_payload:
+                current_group: "{{ event.payload.payload.current_group }}"
+
+- name: ServiceNow CR Approval Bridge
+  hosts: all
+  sources:
+    - servicenow.itsm.records:
+        table: change_request
+        interval: 10
+        sysparm_query: >
+          short_descriptionLIKEPatching Loop^
+          ORDERBYDESCsys_updated_on^ORDERBYDESCsys_id
+        remote_servicenow_timezone: "Europe/London"
+        filters:
+          - ansible.eda.json_filter:
+          - ansible.eda.normalize_keys:
+  rules:
+    - name: CR moved to Implement — bridge approval to AO
+      throttle:
+        once_within: 10 minutes
+        group_by_attributes:
+          - sys_id
+      condition: event.state == '-1'
+      action:
+        run_job_template:
+          name: "Loop - Bridge AO Approval"
+          organization: Default
+          job_args:
+            extra_vars:
+              cr_number: "{{ event.number }}"
+              cr_sys_id: "{{ event.sys_id }}"
+              cr_short_description: "{{ event.short_description }}"

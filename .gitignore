@@ -1,0 +1,6 @@
+.env
+*.pem
+.ansible/
+context/
+collections/
+__pycache__/

@@ -1,0 +1,71 @@
+---
+- name: Apply AAP objects — Patching Loop
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  collections:
+    - infra.aap_configuration
+
+  vars:
+    aap_hostname: "{{ lookup('env', 'AAP_HOSTNAME') | default(omit, true) }}"
+    aap_token: "{{ lookup('env', 'AAP_TOKEN') | default(omit, true) }}"
+    aap_validate_certs: "{{ (lookup('env', 'AAP_VALIDATE_CERTS') | default('false', true)) | bool }}"
+
+    controller_host: "{{ aap_hostname }}"
+    controller_oauthtoken: "{{ aap_token }}"
+    controller_validate_certs: "{{ aap_validate_certs }}"
+
+    aap_configuration_secure_logging: false
+    aap_configuration_collect_logs: true
+    aap_configuration_async_retries: 60
+    aap_configuration_async_delay: 5
+
+    probe_ssh_key: "{{ lookup('file', probe_ssh_key_path, errors='ignore') | default(omit, true) }}"
+    probe_ssh_key_path: "{{ (playbook_dir + '/../../' + lookup('env', 'PROBE_SSH_KEY_PATH')) | default('./patching-loop.pem', true) }}"
+
+    aws_access_key: "{{ lookup('env', 'AWS_ACCESS_KEY_ID') | default(omit, true) }}"
+    aws_secret_key: "{{ lookup('env', 'AWS_SECRET_ACCESS_KEY') | default(omit, true) }}"
+
+    github_repo: "{{ lookup('env', 'GITHUB_REPO') | default('crenwick93/ao-summit-connect-patching-loop', true) }}"
+    git_repo_url: "{{ 'https://github.com/' ~ github_repo ~ '.git' }}"
+    github_token: "{{ lookup('env', 'GITHUB_TOKEN') | default(omit, true) }}"
+
+    servicenow_instance_url: "{{ lookup('env', 'SERVICENOW_INSTANCE_URL') | default(omit, true) }}"
+    servicenow_username: "{{ lookup('env', 'SERVICENOW_USERNAME') | default(omit, true) }}"
+    servicenow_password: "{{ lookup('env', 'SERVICENOW_PASSWORD') | default(omit, true) }}"
+
+    ao_webhook_base_url: "{{ lookup('env', 'AO_WEBHOOK_BASE_URL') | default('https://ao.sandbox329.opentlc.com', true) }}"
+    ao_webhook_path: "{{ lookup('env', 'AO_WEBHOOK_PATH') | default('placeholder', true) }}"
+    ao_webhook_client_id: "{{ lookup('env', 'AO_WEBHOOK_CLIENT_ID') | default('placeholder', true) }}"
+    ao_webhook_client_secret: "{{ lookup('env', 'AO_WEBHOOK_CLIENT_SECRET') | default('placeholder', true) }}"
+
+    eda_event_stream_token: "{{ lookup('env', 'EDA_EVENT_STREAM_TOKEN') | default('placeholder', true) }}"
+
+  vars_files:
+    - vars.yml
+  roles:
+    - role: infra.aap_configuration.dispatch
+
+  post_tasks:
+    - name: Look up rulebook activations
+      ansible.builtin.uri:
+        url: "{{ aap_hostname }}/api/eda/v1/activations/"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ aap_token }}"
+        validate_certs: "{{ aap_validate_certs }}"
+        status_code: [200]
+      register: _activations_response
+
+    - name: Enable disabled rulebook activations
+      ansible.builtin.uri:
+        url: "{{ aap_hostname }}/api/eda/v1/activations/{{ item.id }}/enable/"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ aap_token }}"
+        validate_certs: "{{ aap_validate_certs }}"
+        status_code: [204, 200, 409]
+      loop: "{{ _activations_response.json.results }}"
+      loop_control:
+        label: "{{ item.name }}"
+      when: not item.is_enabled | default(true)

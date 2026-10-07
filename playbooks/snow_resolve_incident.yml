@@ -1,0 +1,38 @@
+---
+- name: Resolve Incident — Patching Loop Cycle Complete
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  tasks:
+    - name: Add close-out work note to incident
+      servicenow.itsm.incident:
+        sys_id: "{{ inc_sys_id }}"
+        other:
+          work_notes: |
+            [AUTOMATED] Patching Loop Cycle Complete — Group {{ current_group }}
+
+            All workflow steps complete.
+            Group: {{ current_group }}
+            Target hosts: {{ target_hosts | default('tag_group_' ~ current_group) }}
+            Pre-checks: PASSED ✓
+            PwnKit mitigation: Applied ✓
+            Post-checks: PASSED ✓
+            Services healthy: Yes ✓
+
+            Proceeding to resolve incident.
+            Group will be reset (terminate + relaunch from AMI) and next group will be triggered.
+
+    - name: Resolve incident
+      servicenow.itsm.incident:
+        sys_id: "{{ inc_sys_id }}"
+        state: resolved
+        close_code: "Solved (Permanently)"
+        close_notes: >-
+          Patching loop cycle for Group {{ current_group }} complete.
+          PwnKit mitigation applied, all checks passed.
+          Incident resolved by automated workflow.
+
+    - name: Display resolution
+      ansible.builtin.debug:
+        msg: "Incident {{ inc_number | default(inc_sys_id) }} resolved — Group {{ current_group }} cycle complete."

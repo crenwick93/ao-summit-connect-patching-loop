@@ -1,0 +1,177 @@
+---
+# ServiceNow change request management for patching loop.
+# Uses NORMAL change requests (not emergency) — the approval gate is the booth demo engagement point.
+#
+# Actions:
+#   create    — Create normal CR for patching approval gate.
+#               Publishes cr_sys_id and cr_number via set_stats.
+#   update    — Add work notes to an existing CR.
+#   review    — Move CR to review state.
+#   close     — Close the CR.
+#
+# Usage from AO workflow extra_vars:
+#   { "action": "create", "current_group": "A", "inc_sys_id": "..." }
+#   { "action": "update", "cr_sys_id": "...", "work_notes": "..." }
+#   { "action": "close", "cr_sys_id": "..." }
+
+- name: Manage ServiceNow Change Request — Patching Loop
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  environment:
+    SN_TIMEOUT: "20"
+
+  tasks:
+    - name: Validate action
+      ansible.builtin.assert:
+        that:
+          - action is defined
+          - action in ['create', 'update', 'review', 'close']
+        fail_msg: "action must be one of: create, update, review, close"
+
+    # =========================================================================
+    # ACTION: create
+    # =========================================================================
+    - name: Create normal Change Request for patching approval
+      servicenow.itsm.change_request:
+        type: normal
+        state: new
+        short_description: "Patching Loop — Group {{ current_group }} — PwnKit Mitigation"
+        description: |
+          === Patching Loop Change Request ===
+          Group: {{ current_group }}
+          Target hosts: {{ target_hosts | default('tag_group_' ~ current_group) }}
+
+          === Remediation ===
+          Apply PwnKit (CVE-2021-4034) systemtap mitigation to Group {{ current_group }} hosts.
+
+          === Workflow ===
+          Pre-checks passed. Awaiting approval to proceed with mitigation.
+          After mitigation: post-checks, incident resolution, group reset, then next group.
+
+          === Linked Incident ===
+          Parent Incident: {{ inc_number | default('N/A') }}
+        priority: "{{ cr_priority | default(3) }}"
+        risk: "{{ cr_risk | default('low') }}"
+        impact: "{{ cr_impact | default(3) }}"
+        category: "{{ cr_category | default('Software') }}"
+        assignment_group: "{{ cr_assignment_group | default('CAB Approval') }}"
+        other:
+          parent: "{{ inc_sys_id | default(omit) }}"
+          justification: "Automated patching loop — PwnKit mitigation for Group {{ current_group }}."
+          implementation_plan: "Automated by Ansible Automation Platform and Automation Orchestrator. Systemtap module blocks pkexec exploitation."
+          backout_plan: "rmmod stap_pkexec_block && rm -f /root/pkexec-block.stp /root/pkexec-block.log"
+          test_plan: "Automated post-checks verify service health and systemtap module loaded on all hosts."
+      register: cr_result
+      when: action == 'create'
+
+    - name: Transition CR to Authorize and request approval
+      servicenow.itsm.change_request:
+        number: "{{ cr_result.record.number }}"
+        state: authorize
+        assignment_group: "{{ cr_assignment_group | default('CAB Approval') }}"
+        other:
+          approval: requested
+          assigned_to: "{{ servicenow_approver | default('admin') }}"
+      when: action == 'create'
+
+    - name: Update incident with CR reference
+      servicenow.itsm.incident:
+        sys_id: "{{ inc_sys_id }}"
+        other:
+          work_notes: >-
+            [AUTOMATED] Change Request {{ cr_result.record.number }} raised for Group {{ current_group }} patching —
+            awaiting approval before mitigation proceeds.
+      when:
+        - action == 'create'
+        - inc_sys_id is defined
+
+    - name: Display created CR
+      ansible.builtin.debug:
+        msg: |
+          === Change Request Created ===
+          Number: {{ cr_result.record.number }}
+          Sys ID: {{ cr_result.record.sys_id }}
+          Group: {{ current_group }}
+      when: action == 'create'
+
+    - name: Publish CR identifiers
+      ansible.builtin.set_stats:
+        data:
+          cr_sys_id: "{{ cr_result.record.sys_id }}"
+          cr_number: "{{ cr_result.record.number }}"
+        aggregate: false
+      when: action == 'create'
+
+    # =========================================================================
+    # ACTION: update
+    # =========================================================================
+    - name: Validate update parameters
+      ansible.builtin.assert:
+        that:
+          - cr_sys_id is defined
+          - cr_sys_id | length > 0
+          - work_notes is defined
+        fail_msg: "cr_sys_id and work_notes must be provided for update action"
+      when: action == 'update'
+
+    - name: Add work notes to CR
+      servicenow.itsm.change_request:
+        sys_id: "{{ cr_sys_id }}"
+        other:
+          work_notes: "{{ work_notes }}"
+      when: action == 'update'
+
+    - name: Display update confirmation
+      ansible.builtin.debug:
+        msg: "CR {{ cr_sys_id }} updated with work notes"
+      when: action == 'update'
+
+    # =========================================================================
+    # ACTION: review
+    # =========================================================================
+    - name: Validate review parameters
+      ansible.builtin.assert:
+        that:
+          - cr_sys_id is defined
+          - cr_sys_id | length > 0
+        fail_msg: "cr_sys_id must be provided for review action"
+      when: action == 'review'
+
+    - name: Move CR to Review
+      servicenow.itsm.change_request:
+        sys_id: "{{ cr_sys_id }}"
+        state: review
+        other:
+          work_notes: "{{ work_notes | default('[AUTOMATED] Patching complete — ready for review.') }}"
+      when: action == 'review'
+
+    - name: Display review confirmation
+      ansible.builtin.debug:
+        msg: "CR {{ cr_sys_id }} moved to Review"
+      when: action == 'review'
+
+    # =========================================================================
+    # ACTION: close
+    # =========================================================================
+    - name: Validate close parameters
+      ansible.builtin.assert:
+        that:
+          - cr_sys_id is defined
+          - cr_sys_id | length > 0
+        fail_msg: "cr_sys_id must be provided for close action"
+      when: action == 'close'
+
+    - name: Close CR
+      servicenow.itsm.change_request:
+        sys_id: "{{ cr_sys_id }}"
+        state: closed
+        close_code: "{{ cr_close_code | default('successful') }}"
+        close_notes: "{{ close_notes | default('Patching loop cycle complete. Closed by automated workflow.') }}"
+      when: action == 'close'
+
+    - name: Display close confirmation
+      ansible.builtin.debug:
+        msg: "CR {{ cr_sys_id }} closed"
+      when: action == 'close'

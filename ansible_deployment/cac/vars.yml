@@ -1,0 +1,392 @@
+---
+# =============================================================================
+# AAP Configuration as Code — Patching Loop (Summit Connect Demo)
+# =============================================================================
+# Namespaced with "Loop -" prefix to avoid collisions with the CVE remediation
+# project on the same AAP instance.
+
+# -----------------------------------------------------------------------------
+# Custom Credential Types
+# -----------------------------------------------------------------------------
+controller_credential_types:
+  - name: "ServiceNow Credential"
+    description: "ServiceNow instance credentials for ITSM API"
+    kind: cloud
+    inputs:
+      fields:
+        - id: SN_HOST
+          type: string
+          label: "ServiceNow Instance URL"
+        - id: SN_USERNAME
+          type: string
+          label: "Username"
+        - id: SN_PASSWORD
+          type: string
+          label: "Password"
+          secret: true
+    injectors:
+      env:
+        SN_HOST: !unsafe "{{ SN_HOST }}"
+        SN_USERNAME: !unsafe "{{ SN_USERNAME }}"
+        SN_PASSWORD: !unsafe "{{ SN_PASSWORD }}"
+
+  - name: "AO Webhook Credential"
+    description: "OAuth2 service account for Automation Orchestrator EDA trigger"
+    kind: cloud
+    inputs:
+      fields:
+        - id: webhook_base_url
+          type: string
+          label: "AO Base URL"
+        - id: webhook_client_id
+          type: string
+          label: "Service Account Client ID"
+        - id: webhook_client_secret
+          type: string
+          label: "Service Account Client Secret"
+          secret: true
+    injectors:
+      extra_vars:
+        webhook_base_url: !unsafe "{{ webhook_base_url }}"
+        webhook_client_id: !unsafe "{{ webhook_client_id }}"
+        webhook_client_secret: !unsafe "{{ webhook_client_secret }}"
+
+  - name: "AO API Credential"
+    description: "Service account for AO REST API — bridges SNOW CR approval to AO approval gate"
+    kind: cloud
+    inputs:
+      fields:
+        - id: ao_sa_client_id
+          type: string
+          label: "AO Service Account Client ID"
+        - id: ao_sa_client_secret
+          type: string
+          label: "AO Service Account Client Secret"
+          secret: true
+        - id: ao_base_url
+          type: string
+          label: "AO Base URL"
+    injectors:
+      extra_vars:
+        ao_sa_client_id: !unsafe "{{ ao_sa_client_id }}"
+        ao_sa_client_secret: !unsafe "{{ ao_sa_client_secret }}"
+        ao_base_url: !unsafe "{{ ao_base_url }}"
+
+# -----------------------------------------------------------------------------
+# Credentials
+# -----------------------------------------------------------------------------
+controller_credentials:
+  - name: "Loop - SSH Key"
+    description: "SSH access to patching loop EC2 instances (ec2-user)"
+    organization: "Default"
+    credential_type: "Machine"
+    inputs:
+      username: ec2-user
+      ssh_key_data: "{{ probe_ssh_key }}"
+
+  - name: "Loop - AWS"
+    description: "AWS credentials for dynamic EC2 inventory and instance management"
+    organization: "Default"
+    credential_type: "Amazon Web Services"
+    inputs:
+      username: "{{ aws_access_key }}"
+      password: "{{ aws_secret_key }}"
+
+  - name: "Loop - ServiceNow"
+    description: "ServiceNow developer instance for ITSM integration"
+    organization: "Default"
+    credential_type: "ServiceNow Credential"
+    inputs:
+      SN_HOST: "{{ servicenow_instance_url }}"
+      SN_USERNAME: "{{ servicenow_username }}"
+      SN_PASSWORD: "{{ servicenow_password }}"
+
+  - name: "Loop - AAP Controller"
+    description: "Controller credential for internal workflow operations"
+    organization: "Default"
+    credential_type: "Red Hat Ansible Automation Platform"
+    inputs:
+      host: "{{ aap_hostname | regex_replace('/+$','') }}"
+      oauth_token: "{{ aap_token }}"
+      verify_ssl: "{{ aap_validate_certs }}"
+
+  - name: "Loop - AO Webhook"
+    description: "OAuth2 credentials for AO EDA trigger endpoint"
+    organization: "Default"
+    credential_type: "AO Webhook Credential"
+    inputs:
+      webhook_base_url: "{{ ao_webhook_base_url }}"
+      webhook_client_id: "{{ ao_webhook_client_id }}"
+      webhook_client_secret: "{{ ao_webhook_client_secret }}"
+
+  - name: "Loop - AO API"
+    description: "Service account for AO REST API — bridges SNOW CR approval to AO approval gate"
+    organization: "Default"
+    credential_type: "AO API Credential"
+    inputs:
+      ao_sa_client_id: "{{ ao_webhook_client_id }}"
+      ao_sa_client_secret: "{{ ao_webhook_client_secret }}"
+      ao_base_url: "{{ ao_webhook_base_url }}"
+
+# -----------------------------------------------------------------------------
+# Projects
+# -----------------------------------------------------------------------------
+controller_projects:
+  - name: "Patching Loop"
+    description: "Playbooks and rulebooks for Summit Connect patching loop demo"
+    organization: "Default"
+    scm_type: "git"
+    scm_url: "{{ git_repo_url }}"
+    scm_branch: "main"
+    scm_update_on_launch: true
+
+# -----------------------------------------------------------------------------
+# Inventories
+# -----------------------------------------------------------------------------
+controller_inventories:
+  - name: "Patching Loop Lab"
+    description: "EC2 instances for patching loop demo (9 hosts, 3 groups)"
+    organization: "Default"
+
+# -----------------------------------------------------------------------------
+# Inventory Sources (dynamic — AWS EC2)
+# -----------------------------------------------------------------------------
+controller_inventory_sources:
+  - name: "Loop - AWS EC2 Discovery"
+    inventory: "Patching Loop Lab"
+    source: "ec2"
+    credential: "Loop - AWS"
+    overwrite: true
+    update_on_launch: true
+    source_vars:
+      plugin: amazon.aws.aws_ec2
+      regions:
+        - eu-west-1
+      filters:
+        "tag:demo": patching-loop
+      hostnames:
+        - tag:Name
+      keyed_groups:
+        - key: tags.group
+          prefix: tag_group
+      compose:
+        ansible_host: public_ip_address
+        ansible_user: "'ec2-user'"
+        ansible_become: "true"
+
+# -----------------------------------------------------------------------------
+# Job Templates (10 — matching AO workflow nodes)
+# -----------------------------------------------------------------------------
+controller_templates:
+  - name: "Loop - Trigger AO Workflow"
+    description: "EDA-to-AO bridge: OAuth2 token + POST to AO EDA trigger endpoint"
+    organization: "Default"
+    job_type: "run"
+    project: "Patching Loop"
+    playbook: "playbooks/trigger_ao_workflow.yml"
+    inventory: "Patching Loop Lab"
+    ask_variables_on_launch: true
+    credentials:
+      - "Loop - AO Webhook"
+
+  - name: "Loop - Fleet Assessment"
+    description: "Verify group hosts are alive and reachable"
+    organization: "Default"
+    job_type: "run"
+    project: "Patching Loop"
+    playbook: "playbooks/fleet_assessment.yml"
+    inventory: "Patching Loop Lab"
+    ask_variables_on_launch: true
+    ask_limit_on_launch: true
+    credentials:
+      - "Loop - SSH Key"
+
+  - name: "Loop - Open Incident"
+    description: "Create ServiceNow incident for this patching cycle"
+    organization: "Default"
+    job_type: "run"
+    project: "Patching Loop"
+    playbook: "playbooks/snow_open_incident.yml"
+    inventory: "Patching Loop Lab"
+    ask_variables_on_launch: true
+    credentials:
+      - "Loop - ServiceNow"
+
+  - name: "Loop - Manage Change Request"
+    description: "Create, update, review, or close change requests in ServiceNow"
+    organization: "Default"
+    job_type: "run"
+    project: "Patching Loop"
+    playbook: "playbooks/snow_manage_change_request.yml"
+    inventory: "Patching Loop Lab"
+    ask_variables_on_launch: true
+    credentials:
+      - "Loop - ServiceNow"
+
+  - name: "Loop - Bridge AO Approval"
+    description: "Bridges ServiceNow CR approval to AO workflow approval gate via AO REST API"
+    organization: "Default"
+    job_type: "run"
+    project: "Patching Loop"
+    playbook: "playbooks/bridge_ao_approval.yml"
+    inventory: "Patching Loop Lab"
+    ask_variables_on_launch: true
+    credentials:
+      - "Loop - AO API"
+
+  - name: "Loop - Pre-check"
+    description: "System readiness checks before mitigation"
+    organization: "Default"
+    job_type: "run"
+    project: "Patching Loop"
+    playbook: "playbooks/precheck.yml"
+    inventory: "Patching Loop Lab"
+    ask_variables_on_launch: true
+    ask_limit_on_launch: true
+    credentials:
+      - "Loop - SSH Key"
+      - "Loop - ServiceNow"
+
+  - name: "Loop - Run Mitigation"
+    description: "Apply PwnKit (CVE-2021-4034) systemtap mitigation"
+    organization: "Default"
+    job_type: "run"
+    project: "Patching Loop"
+    playbook: "mitigation-playbooks/CVE-2021-4034_polkit_mitigate.yml"
+    inventory: "Patching Loop Lab"
+    ask_variables_on_launch: true
+    ask_limit_on_launch: true
+    credentials:
+      - "Loop - SSH Key"
+
+  - name: "Loop - Post-check"
+    description: "Post-remediation validation"
+    organization: "Default"
+    job_type: "run"
+    project: "Patching Loop"
+    playbook: "playbooks/postcheck.yml"
+    inventory: "Patching Loop Lab"
+    ask_variables_on_launch: true
+    ask_limit_on_launch: true
+    credentials:
+      - "Loop - SSH Key"
+      - "Loop - ServiceNow"
+
+  - name: "Loop - Resolve Incident"
+    description: "Close-out and resolve the ServiceNow incident"
+    organization: "Default"
+    job_type: "run"
+    project: "Patching Loop"
+    playbook: "playbooks/snow_resolve_incident.yml"
+    inventory: "Patching Loop Lab"
+    ask_variables_on_launch: true
+    credentials:
+      - "Loop - ServiceNow"
+
+  - name: "Loop - Reset Group"
+    description: "Terminate EC2 instances and relaunch from base AMI"
+    organization: "Default"
+    job_type: "run"
+    project: "Patching Loop"
+    playbook: "playbooks/reset_group.yml"
+    inventory: "Patching Loop Lab"
+    ask_variables_on_launch: true
+    credentials:
+      - "Loop - AWS"
+      - "Loop - SSH Key"
+
+  - name: "Loop - Fire Next Group"
+    description: "Compute next group and fire webhook to EDA (closes the loop)"
+    organization: "Default"
+    job_type: "run"
+    project: "Patching Loop"
+    playbook: "playbooks/fire_next_group.yml"
+    inventory: "Patching Loop Lab"
+    ask_variables_on_launch: true
+    credentials:
+      - "Loop - AO Webhook"
+
+# =============================================================================
+# Event-Driven Ansible
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# EDA Decision Environments
+# -----------------------------------------------------------------------------
+eda_decision_environments:
+  - name: "Patching Loop DE"
+    description: "ServiceNow-enabled DE for patching loop (webhook + CR polling)"
+    organization: "Default"
+    image_url: "quay.io/crenwick93/snow-de:latest"
+
+# -----------------------------------------------------------------------------
+# EDA Projects
+# -----------------------------------------------------------------------------
+eda_projects:
+  - name: "Patching Loop"
+    description: "EDA rulebooks for patching loop"
+    organization: "Default"
+    url: "{{ git_repo_url }}"
+    wait: true
+
+# -----------------------------------------------------------------------------
+# EDA Credentials
+# -----------------------------------------------------------------------------
+eda_credentials:
+  - name: "Loop - AAP Controller Token"
+    description: "Controller credential so EDA can launch job templates"
+    credential_type: "Red Hat Ansible Automation Platform"
+    organization: "Default"
+    inputs:
+      host: "http://aap.aap-operator.svc.cluster.local/api/controller/"
+      oauth_token: "{{ aap_token }}"
+      verify_ssl: false
+
+  - name: "Loop - ServiceNow EDA"
+    description: "ServiceNow credentials for EDA CR polling source"
+    credential_type: "ServiceNow Credential"
+    organization: "Default"
+    inputs:
+      SN_HOST: "{{ servicenow_instance_url }}"
+      SN_USERNAME: "{{ servicenow_username }}"
+      SN_PASSWORD: "{{ servicenow_password }}"
+
+  - name: "Loop - Webhook Token"
+    description: "Token auth for patching loop webhook events"
+    credential_type: "Token Event Stream"
+    organization: "Default"
+    inputs:
+      auth_type: token
+      token: "{{ eda_event_stream_token }}"
+      http_header_key: Authorization
+
+# -----------------------------------------------------------------------------
+# Event Streams
+# -----------------------------------------------------------------------------
+eda_event_streams:
+  - name: "Patching Loop Events"
+    organization: "Default"
+    credential_name: "Loop - Webhook Token"
+    event_stream_type: token
+    forward_events: true
+    test_mode: false
+
+# -----------------------------------------------------------------------------
+# Rulebook Activations
+# -----------------------------------------------------------------------------
+eda_rulebook_activations:
+  - name: "Patching Loop"
+    description: "Monitors webhook for group triggers + ServiceNow CR approvals"
+    organization: "Default"
+    project: "Patching Loop"
+    rulebook: "patching_loop.yml"
+    decision_environment: "Patching Loop DE"
+    enabled: true
+    extra_vars:
+      webhook_path: "{{ ao_webhook_path }}"
+    source_mappings:
+      - source_name: loop_webhook
+        event_stream_name: "Patching Loop Events"
+    eda_credentials:
+      - "Loop - AAP Controller Token"
+      - "Loop - ServiceNow EDA"

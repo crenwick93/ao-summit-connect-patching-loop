@@ -1,0 +1,126 @@
+---
+# Reset group: terminate EC2 instances and relaunch from base AMI.
+# After reset, the CVE will show as unmitigated again (clean slate for next cycle).
+#
+# Expects:
+#   current_group: A|B|C
+#   aws_region, base_ami_id, instance_type, subnet_id, security_group_id, key_pair_name
+#   rh_org_id, rh_activation_key (for Insights registration)
+
+- name: Reset Group — Terminate and Relaunch from AMI
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    _group: "{{ current_group | upper }}"
+    _aws_region: "{{ aws_region | default(lookup('env', 'AWS_REGION')) | default('eu-west-1', true) }}"
+    _base_ami: "{{ base_ami_id | default(lookup('env', 'AWS_BASE_AMI_ID')) }}"
+    _instance_type: "{{ instance_type | default(lookup('env', 'AWS_INSTANCE_TYPE')) | default('t3.micro', true) }}"
+    _subnet_id: "{{ subnet_id | default(lookup('env', 'AWS_SUBNET_ID')) }}"
+    _sg_id: "{{ security_group_id | default(lookup('env', 'AWS_SECURITY_GROUP_ID')) }}"
+    _key_pair: "{{ key_pair_name | default(lookup('env', 'AWS_KEY_PAIR_NAME')) | default('patching-loop', true) }}"
+    _rh_org_id: "{{ rh_org_id | default(lookup('env', 'RH_ORG_ID')) }}"
+    _rh_activation_key: "{{ rh_activation_key | default(lookup('env', 'RH_ACTIVATION_KEY')) }}"
+    _group_hosts:
+      A: ["patch-loop-a1", "patch-loop-a2", "patch-loop-a3"]
+      B: ["patch-loop-b1", "patch-loop-b2", "patch-loop-b3"]
+      C: ["patch-loop-c1", "patch-loop-c2", "patch-loop-c3"]
+
+  tasks:
+    - name: "Find running instances for Group {{ _group }}"
+      amazon.aws.ec2_instance_info:
+        region: "{{ _aws_region }}"
+        filters:
+          "tag:demo": patching-loop
+          "tag:group": "{{ _group }}"
+          instance-state-name: running
+      register: existing_instances
+
+    - name: Display instances to terminate
+      ansible.builtin.debug:
+        msg: "Found {{ existing_instances.instances | length }} running instances for Group {{ _group }}"
+
+    - name: "Terminate Group {{ _group }} instances"
+      amazon.aws.ec2_instance:
+        region: "{{ _aws_region }}"
+        instance_ids: "{{ existing_instances.instances | map(attribute='instance_id') | list }}"
+        state: terminated
+        wait: true
+      when: existing_instances.instances | length > 0
+
+    - name: Wait for termination to complete
+      ansible.builtin.pause:
+        seconds: 10
+      when: existing_instances.instances | length > 0
+
+    - name: "Launch 3 new instances for Group {{ _group }}"
+      amazon.aws.ec2_instance:
+        region: "{{ _aws_region }}"
+        image_id: "{{ _base_ami }}"
+        instance_type: "{{ _instance_type }}"
+        key_name: "{{ _key_pair }}"
+        vpc_subnet_id: "{{ _subnet_id }}"
+        security_group: "{{ _sg_id }}"
+        network:
+          assign_public_ip: true
+        tags:
+          Name: "{{ item }}"
+          demo: patching-loop
+          group: "{{ _group }}"
+        wait: true
+        state: running
+      loop: "{{ _group_hosts[_group] }}"
+      register: new_instances
+
+    - name: Wait for SSH to come up on new instances
+      ansible.builtin.wait_for:
+        host: "{{ item.instances[0].public_ip_address }}"
+        port: 22
+        delay: 10
+        timeout: 300
+        state: started
+      loop: "{{ new_instances.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
+    - name: Add new hosts to in-memory inventory
+      ansible.builtin.add_host:
+        name: "{{ item.instances[0].public_ip_address }}"
+        groups: new_hosts
+        ansible_user: ec2-user
+        ansible_become: true
+        instance_name: "{{ item.item }}"
+      loop: "{{ new_instances.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
+    - name: Display reset summary
+      ansible.builtin.debug:
+        msg: |
+          === Group {{ _group }} Reset Complete ===
+          Terminated: {{ existing_instances.instances | length }} instances
+          Launched: {{ new_instances.results | length }} new instances from AMI {{ _base_ami }}
+          New hosts: {{ new_instances.results | map(attribute='instances') | flatten | map(attribute='public_ip_address') | list | join(', ') }}
+
+- name: Register new hosts with Red Hat Insights
+  hosts: new_hosts
+  become: true
+  gather_facts: false
+
+  vars:
+    _rh_org_id: "{{ rh_org_id | default(lookup('env', 'RH_ORG_ID')) }}"
+    _rh_activation_key: "{{ rh_activation_key | default(lookup('env', 'RH_ACTIVATION_KEY')) }}"
+
+  tasks:
+    - name: Register with RHSM using activation key
+      community.general.redhat_subscription:
+        state: present
+        org_id: "{{ _rh_org_id }}"
+        activationkey: "{{ _rh_activation_key }}"
+      when: _rh_org_id | length > 0
+
+    - name: Register with Insights
+      ansible.builtin.command: insights-client --register
+      changed_when: true
+      when: _rh_org_id | length > 0

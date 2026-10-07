@@ -1,0 +1,56 @@
+---
+# EDA-to-AO bridge playbook.
+#
+# Official pattern from Red Hat documentation:
+# https://docs.redhat.com/en/documentation/automation_orchestrator/2026.8/develop-add_an_event_driven_ansible_trigger
+#
+# Two HTTP calls:
+#   1. OAuth2 client_credentials grant -> bearer token
+#   2. POST event payload to AO EDA trigger endpoint
+#
+# webhook_base_url, webhook_client_id, webhook_client_secret are injected
+# by the "AO Webhook Credential" custom credential type.
+# webhook_path and event_payload are passed as extra_vars from the EDA rulebook.
+
+- name: Trigger AO CVE Remediation Workflow
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    webhook_base_url: ""
+    webhook_path: ""
+    webhook_client_id: ""
+    webhook_client_secret: ""
+    event_payload: {}
+
+  tasks:
+    - name: Obtain OAuth token
+      ansible.builtin.uri:
+        url: "{{ webhook_base_url }}/api/v1/auth/token"
+        method: POST
+        body_format: form-urlencoded
+        body:
+          grant_type: client_credentials
+          client_id: "{{ webhook_client_id }}"
+          client_secret: "{{ webhook_client_secret }}"
+        validate_certs: false
+        status_code: 200
+      register: token_response
+
+    - name: Post event payload to Event-Driven Ansible trigger endpoint
+      ansible.builtin.uri:
+        url: "{{ webhook_base_url }}/api/v1/webhooks/eda/{{ webhook_path }}"
+        method: POST
+        body_format: json
+        headers:
+          Authorization: "Bearer {{ token_response.json.access_token }}"
+          Content-Type: application/json
+        body: "{{ event_payload }}"
+        validate_certs: false
+        status_code: 202
+      register: webhook_response
+
+    - name: Display execution ID
+      ansible.builtin.debug:
+        msg: "Workflow execution started: {{ webhook_response.json.execution_id }}"

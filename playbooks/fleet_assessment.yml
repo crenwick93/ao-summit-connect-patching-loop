@@ -1,0 +1,46 @@
+---
+# Simplified fleet assessment for patching loop.
+# Just verifies that the group's hosts are reachable and alive.
+# No Insights API calls — this is a simpler loop context.
+
+- name: Fleet Assessment — Patching Loop
+  hosts: all
+  gather_facts: true
+
+  tasks:
+    - name: Verify host is reachable
+      ansible.builtin.ping:
+
+    - name: Display host info
+      ansible.builtin.debug:
+        msg: >-
+          {{ inventory_hostname }} — {{ ansible_distribution | default('Unknown') }}
+          {{ ansible_distribution_version | default('') }},
+          {{ ansible_memtotal_mb | default('?') }} MB RAM,
+          Kernel {{ ansible_kernel | default('?') }}
+
+- name: Consolidate fleet assessment
+  hosts: all
+  gather_facts: false
+  run_once: true
+
+  vars:
+    _checked_hosts: "{{ groups['all'] | join(', ') }}"
+    _host_count: "{{ groups['all'] | length }}"
+
+  tasks:
+    - name: Display fleet assessment summary
+      ansible.builtin.debug:
+        msg: |
+          === Fleet Assessment — Group {{ current_group | default('?') }} ===
+          Hosts alive ({{ _host_count }}): {{ _checked_hosts }}
+          All hosts reachable ✓
+
+    - name: Publish fleet assessment artifacts
+      ansible.builtin.set_stats:
+        data:
+          current_group: "{{ current_group }}"
+          target_hosts: "{{ _checked_hosts }}"
+          host_count: "{{ _host_count }}"
+          fleet_healthy: true
+        aggregate: false

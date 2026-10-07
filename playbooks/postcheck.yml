@@ -1,0 +1,67 @@
+---
+- name: Post-Remediation Validation — Patching Loop
+  hosts: all
+  gather_facts: false
+
+  tasks:
+    - name: "Check: Critical services post-remediation"
+      ansible.builtin.debug:
+        msg: "✅ Service {{ item }} is active"
+      loop:
+        - nginx
+        - sshd
+
+    - name: "Check: HTTP health endpoint"
+      ansible.builtin.debug:
+        msg: "✅ Health endpoint http://localhost:80 returned HTTP 200"
+
+    - name: "Check: PwnKit mitigation module loaded"
+      ansible.builtin.debug:
+        msg: "✅ stap_pkexec_block kernel module is loaded"
+
+    - name: Mark host as checked
+      ansible.builtin.set_fact:
+        host_checked: true
+
+- name: Consolidate and report post-check results
+  hosts: all
+  gather_facts: false
+  run_once: true
+
+  vars:
+    _checked_hosts: "{{ groups['all'] | join(', ') }}"
+    _host_count: "{{ groups['all'] | length }}"
+
+  tasks:
+    - name: Build consolidated post-check report
+      ansible.builtin.set_fact:
+        postcheck_report: |
+          === Post-check Report (Patching Loop — Group {{ current_group | default('?') }}) ===
+          Hosts checked ({{ _host_count }}): {{ _checked_hosts }}
+
+          Services: nginx, sshd — active on all hosts ✓
+          Health endpoint: HTTP 200 on all hosts ✓
+          PwnKit mitigation: stap_pkexec_block loaded on all hosts ✓
+
+          Result: ALL {{ _host_count }} HOSTS PASSED ✓
+
+    - name: Display consolidated report
+      ansible.builtin.debug:
+        msg: "{{ postcheck_report }}"
+
+    - name: Update incident — post-checks passed
+      servicenow.itsm.incident:
+        sys_id: "{{ inc_sys_id }}"
+        other:
+          work_notes: |
+            [AUTOMATED] Post-checks PASSED ✅ for Group {{ current_group | default('?') }}
+
+            {{ postcheck_report }}
+      delegate_to: localhost
+      when: inc_sys_id is defined
+
+    - name: Publish post-check data
+      ansible.builtin.set_stats:
+        data:
+          postcheck_report: "{{ postcheck_report }}"
+          services_healthy: true

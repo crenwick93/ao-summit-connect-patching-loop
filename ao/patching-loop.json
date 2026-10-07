@@ -1,0 +1,294 @@
+{
+  "schema_version": "2.0.0",
+  "name": "Patching Loop",
+  "description": "Self-perpetuating patching loop: 9 EC2s in 3 rotating groups (A/B/C). Each cycle: assess, open incident, create CR (approval gate for booth visitor), pre-check, mitigate PwnKit, post-check, resolve incident, wait, reset group, fire next group.",
+  "triggers": [
+    {
+      "id": "trigger_eda",
+      "type": "eda_trigger",
+      "name": "Patching Loop (EDA)",
+      "parameters": {
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "current_group": {
+              "type": "string",
+              "description": "Current group to patch: A, B, or C"
+            }
+          }
+        },
+        "webhook_path": "PLACEHOLDER_WEBHOOK_PATH",
+        "authorized_service_account_ids": [
+          "PLACEHOLDER_SERVICE_ACCOUNT_ID"
+        ]
+      },
+      "position": {
+        "x": 0,
+        "y": 400
+      }
+    }
+  ],
+  "nodes": [
+    {
+      "id": "fleet_assessment",
+      "type": "aap_job_template",
+      "name": "Fleet Assessment",
+      "parameters": {
+        "diff_mode": false,
+        "limit": "tag_group_${trigger.current_group}",
+        "extra_vars": {
+          "current_group": "${trigger.current_group}"
+        },
+        "job_template_name": "Loop - Fleet Assessment",
+        "organization_name": "Default"
+      },
+      "position": {
+        "x": 400,
+        "y": 400
+      }
+    },
+    {
+      "id": "open_incident",
+      "type": "aap_job_template",
+      "name": "Open Incident",
+      "parameters": {
+        "diff_mode": false,
+        "extra_vars": {
+          "current_group": "${trigger.current_group}",
+          "target_hosts": "${fleet_assessment.artifacts.target_hosts}"
+        },
+        "job_template_name": "Loop - Open Incident",
+        "organization_name": "Default"
+      },
+      "position": {
+        "x": 800,
+        "y": 400
+      }
+    },
+    {
+      "id": "create_cr",
+      "type": "aap_job_template",
+      "name": "Create Change Request",
+      "parameters": {
+        "diff_mode": false,
+        "extra_vars": {
+          "action": "create",
+          "current_group": "${trigger.current_group}",
+          "target_hosts": "${fleet_assessment.artifacts.target_hosts}",
+          "inc_sys_id": "${open_incident.artifacts.inc_sys_id}",
+          "inc_number": "${open_incident.artifacts.inc_number}"
+        },
+        "job_template_name": "Loop - Manage Change Request",
+        "organization_name": "Default"
+      },
+      "position": {
+        "x": 1200,
+        "y": 400
+      }
+    },
+    {
+      "id": "approval_gate",
+      "type": "approval",
+      "name": "Approve Patching",
+      "parameters": {
+        "prompt": "Booth visitor: click Implement in ServiceNow to approve patching for Group ${trigger.current_group}"
+      },
+      "position": {
+        "x": 1600,
+        "y": 400
+      }
+    },
+    {
+      "id": "precheck",
+      "type": "aap_job_template",
+      "name": "Pre-check",
+      "parameters": {
+        "limit": "tag_group_${trigger.current_group}",
+        "diff_mode": false,
+        "extra_vars": {
+          "current_group": "${trigger.current_group}",
+          "inc_sys_id": "${open_incident.artifacts.inc_sys_id}"
+        },
+        "job_template_name": "Loop - Pre-check",
+        "organization_name": "Default"
+      },
+      "position": {
+        "x": 2000,
+        "y": 400
+      }
+    },
+    {
+      "id": "run_mitigation",
+      "type": "aap_job_template",
+      "name": "Run PwnKit Mitigation",
+      "parameters": {
+        "limit": "tag_group_${trigger.current_group}",
+        "diff_mode": false,
+        "extra_vars": {
+          "current_group": "${trigger.current_group}",
+          "inc_sys_id": "${open_incident.artifacts.inc_sys_id}"
+        },
+        "job_template_name": "Loop - Run Mitigation",
+        "organization_name": "Default"
+      },
+      "position": {
+        "x": 2400,
+        "y": 400
+      }
+    },
+    {
+      "id": "postcheck",
+      "type": "aap_job_template",
+      "name": "Post-check",
+      "parameters": {
+        "limit": "tag_group_${trigger.current_group}",
+        "diff_mode": false,
+        "extra_vars": {
+          "current_group": "${trigger.current_group}",
+          "inc_sys_id": "${open_incident.artifacts.inc_sys_id}"
+        },
+        "job_template_name": "Loop - Post-check",
+        "organization_name": "Default"
+      },
+      "position": {
+        "x": 2800,
+        "y": 400
+      }
+    },
+    {
+      "id": "resolve_incident",
+      "type": "aap_job_template",
+      "name": "Resolve Incident",
+      "parameters": {
+        "diff_mode": false,
+        "extra_vars": {
+          "current_group": "${trigger.current_group}",
+          "target_hosts": "${fleet_assessment.artifacts.target_hosts}",
+          "inc_sys_id": "${open_incident.artifacts.inc_sys_id}",
+          "inc_number": "${open_incident.artifacts.inc_number}"
+        },
+        "job_template_name": "Loop - Resolve Incident",
+        "organization_name": "Default"
+      },
+      "position": {
+        "x": 3200,
+        "y": 400
+      }
+    },
+    {
+      "id": "close_cr",
+      "type": "aap_job_template",
+      "name": "Close Change Request",
+      "parameters": {
+        "diff_mode": false,
+        "extra_vars": {
+          "action": "close",
+          "cr_sys_id": "${create_cr.artifacts.cr_sys_id}"
+        },
+        "job_template_name": "Loop - Manage Change Request",
+        "organization_name": "Default"
+      },
+      "position": {
+        "x": 3600,
+        "y": 400
+      }
+    },
+    {
+      "id": "soak_wait",
+      "type": "wait",
+      "name": "Soak (3 min)",
+      "parameters": {
+        "duration": 180
+      },
+      "position": {
+        "x": 4000,
+        "y": 400
+      }
+    },
+    {
+      "id": "reset_group",
+      "type": "aap_job_template",
+      "name": "Reset Group",
+      "parameters": {
+        "diff_mode": false,
+        "extra_vars": {
+          "current_group": "${trigger.current_group}"
+        },
+        "job_template_name": "Loop - Reset Group",
+        "organization_name": "Default"
+      },
+      "position": {
+        "x": 4400,
+        "y": 400
+      }
+    },
+    {
+      "id": "fire_next_group",
+      "type": "aap_job_template",
+      "name": "Fire Next Group",
+      "parameters": {
+        "diff_mode": false,
+        "extra_vars": {
+          "current_group": "${trigger.current_group}"
+        },
+        "job_template_name": "Loop - Fire Next Group",
+        "organization_name": "Default"
+      },
+      "position": {
+        "x": 4800,
+        "y": 400
+      }
+    }
+  ],
+  "edges": [
+    {
+      "from": "trigger_eda",
+      "to": "fleet_assessment"
+    },
+    {
+      "from": "fleet_assessment",
+      "to": "open_incident"
+    },
+    {
+      "from": "open_incident",
+      "to": "create_cr"
+    },
+    {
+      "from": "create_cr",
+      "to": "approval_gate"
+    },
+    {
+      "from": "approval_gate",
+      "to": "precheck",
+      "from_port": "approved"
+    },
+    {
+      "from": "precheck",
+      "to": "run_mitigation"
+    },
+    {
+      "from": "run_mitigation",
+      "to": "postcheck"
+    },
+    {
+      "from": "postcheck",
+      "to": "resolve_incident"
+    },
+    {
+      "from": "resolve_incident",
+      "to": "close_cr"
+    },
+    {
+      "from": "close_cr",
+      "to": "soak_wait"
+    },
+    {
+      "from": "soak_wait",
+      "to": "reset_group"
+    },
+    {
+      "from": "reset_group",
+      "to": "fire_next_group"
+    }
+  ]
+}

@@ -1,0 +1,101 @@
+---
+# Bridges ServiceNow CR approval to the Automation Orchestrator approval gate.
+# Triggered by EDA when a Change Request moves to the Implement state.
+#
+# Uses the AO REST API (NOT the AAP controller API — AO has its own API and auth).
+# Confirmed working on AO 2026.8.
+#
+# AO API endpoints:
+#   POST /api/v1/auth/token         — OAuth2 client_credentials grant
+#   GET  /api/v1/approvals           — list pending approvals
+#   PATCH /api/v1/approvals/{id}     — approve or reject
+
+- name: Bridge CR Approval to AO Workflow
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    _ao_base_url: "{{ ao_base_url | default(lookup('env', 'AO_WEBHOOK_BASE_URL')) | default('https://ao.sandbox329.opentlc.com', true) }}"
+    _ao_client_id: "{{ ao_sa_client_id }}"
+    _ao_client_secret: "{{ ao_sa_client_secret }}"
+
+  tasks:
+    - name: Fail if no CR number provided
+      ansible.builtin.assert:
+        that: cr_number is defined
+        fail_msg: "cr_number must be provided to match the correct AO approval"
+
+    - name: Debug bridge parameters
+      ansible.builtin.debug:
+        msg: "Bridging CR {{ cr_number }} → AO ({{ _ao_base_url }})"
+
+    - name: Get AO OAuth2 token
+      ansible.builtin.uri:
+        url: "{{ _ao_base_url }}/api/v1/auth/token"
+        method: POST
+        body_format: form-urlencoded
+        body:
+          grant_type: client_credentials
+          client_id: "{{ _ao_client_id }}"
+          client_secret: "{{ _ao_client_secret }}"
+        return_content: true
+        status_code: 200
+        validate_certs: false
+      register: ao_token_result
+      no_log: true
+
+    - name: Set AO bearer token
+      ansible.builtin.set_fact:
+        ao_token: "{{ ao_token_result.json.access_token }}"
+      no_log: true
+
+    - name: List pending AO approvals
+      ansible.builtin.uri:
+        url: "{{ _ao_base_url }}/api/v1/approvals"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ ao_token }}"
+        return_content: true
+        validate_certs: false
+      register: approvals_result
+
+    - name: Find pending approval matching this CR number
+      ansible.builtin.set_fact:
+        matching_approval_id: "{{ item.id }}"
+        matching_execution_id: "{{ item.execution_id }}"
+      loop: "{{ approvals_result.json.resources | default([]) }}"
+      loop_control:
+        label: "{{ item.id }} ({{ item.status }})"
+      when:
+        - item.status == "pending"
+        - matching_approval_id is not defined
+        - cr_number in (item.workflow_context | default({}) | to_json)
+
+    - name: Debug matching approval
+      ansible.builtin.debug:
+        msg: >-
+          {{ 'Matched approval ' ~ matching_approval_id ~ ' for CR ' ~ cr_number
+             if matching_approval_id is defined
+             else 'No pending approval found containing CR ' ~ cr_number }}
+
+    - name: Approve the matching AO workflow step
+      ansible.builtin.uri:
+        url: "{{ _ao_base_url }}/api/v1/approvals/{{ matching_approval_id }}"
+        method: PATCH
+        headers:
+          Authorization: "Bearer {{ ao_token }}"
+          Content-Type: application/json
+        body_format: json
+        body:
+          status: approved
+        status_code: [200, 204]
+        validate_certs: false
+      when: matching_approval_id is defined
+
+    - name: Display result
+      ansible.builtin.debug:
+        msg: >-
+          {{ 'ServiceNow CR ' ~ cr_number ~ ' approval bridged to AO (approval ' ~ matching_approval_id ~ ') — patching will proceed.'
+             if matching_approval_id is defined
+             else 'No pending AO approval found matching CR ' ~ cr_number ~ '.' }}

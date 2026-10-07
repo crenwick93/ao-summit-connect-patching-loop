@@ -1,0 +1,14 @@
+---
+github_repo: "{{ lookup('env', 'GITHUB_REPO') | default('crenwick93/ao-summit-connect-patching-loop', true) }}"
+
+# Service health checks — used by precheck.yml and postcheck.yml
+critical_services:
+  - nginx
+  - sshd
+health_endpoint: "http://localhost:80"
+
+# Group rotation mapping
+group_rotation:
+  A: B
+  B: C
+  C: A
