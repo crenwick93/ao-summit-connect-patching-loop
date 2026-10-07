@@ -367,6 +367,30 @@ controller_templates:
 # =============================================================================
 
 # -----------------------------------------------------------------------------
+# EDA Custom Credential Types
+# -----------------------------------------------------------------------------
+eda_credential_types:
+  - name: "ServiceNow Credential"
+    description: "ServiceNow instance credentials for EDA source plugins"
+    inputs:
+      fields:
+        - id: SN_HOST
+          type: string
+          label: "ServiceNow Instance URL"
+        - id: SN_USERNAME
+          type: string
+          label: "Username"
+        - id: SN_PASSWORD
+          type: string
+          label: "Password"
+          secret: true
+    injectors:
+      env:
+        SN_HOST: !unsafe "{{ SN_HOST }}"
+        SN_USERNAME: !unsafe "{{ SN_USERNAME }}"
+        SN_PASSWORD: !unsafe "{{ SN_PASSWORD }}"
+
+# -----------------------------------------------------------------------------
 # EDA Decision Environments
 # -----------------------------------------------------------------------------
 eda_decision_environments:
