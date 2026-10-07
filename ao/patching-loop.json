@@ -13,7 +13,23 @@
           "properties": {
             "current_group": {
               "type": "string",
-              "description": "Current group to patch: A, B, or C"
+              "description": "Target group to patch: A, B, or C"
+            },
+            "cve_id": {
+              "type": "string",
+              "description": "CVE identifier to remediate (e.g. CVE-2021-4034)"
+            },
+            "severity": {
+              "type": ["string", "number"],
+              "description": "CVSS score from the vulnerability assessment"
+            },
+            "advisory_id": {
+              "type": "string",
+              "description": "RHSA advisory ID if a patch is available"
+            },
+            "force_route": {
+              "type": "string",
+              "description": "Override auto-detected route: patch, mitigate, or skip (empty = auto-detect)"
             }
           }
         },
@@ -35,7 +51,8 @@
         "diff_mode": false,
         "limit": "tag_group_${trigger.current_group}",
         "extra_vars": {
-          "current_group": "${trigger.current_group}"
+          "current_group": "${trigger.current_group}",
+          "force_route": "${trigger.force_route}"
         },
         "credential_id": "beb79e87-9581-4447-873d-229755ea8a2b",
         "integration_id": "851d4bfd-6ccb-4b46-81ec-d1cc930b87ef",
@@ -78,7 +95,7 @@
       "parameters": {
         "diff_mode": false,
         "extra_vars": {
-          "cve_id": "CVE-2021-4034",
+          "cve_id": "${trigger.cve_id}",
           "current_group": "${trigger.current_group}",
           "target_hosts": "${fleet_assessment.artifacts.target_hosts}",
           "advisory_available": "mitigate"
@@ -100,7 +117,7 @@
       "parameters": {
         "diff_mode": false,
         "extra_vars": {
-          "cve_id": "CVE-2021-4034",
+          "cve_id": "${trigger.cve_id}",
           "current_group": "${trigger.current_group}",
           "target_hosts": "${fleet_assessment.artifacts.target_hosts}",
           "remediation_route": "mitigate"
@@ -243,7 +260,7 @@
       "parameters": {
         "diff_mode": false,
         "extra_vars": {
-          "cve_id": "CVE-2021-4034",
+          "cve_id": "${trigger.cve_id}",
           "current_group": "${trigger.current_group}",
           "target_hosts": "${fleet_assessment.artifacts.target_hosts}",
           "advisory_available": "patching"
@@ -265,7 +282,7 @@
       "parameters": {
         "diff_mode": false,
         "extra_vars": {
-          "cve_id": "CVE-2021-4034",
+          "cve_id": "${trigger.cve_id}",
           "current_group": "${trigger.current_group}",
           "target_hosts": "${fleet_assessment.artifacts.target_hosts}",
           "playbook_filename": "${fetch_patch.artifacts.playbook_filename}",

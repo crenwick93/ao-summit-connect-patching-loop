@@ -33,6 +33,10 @@
               webhook_path: "{{ webhook_path }}"
               event_payload:
                 current_group: "{{ event.payload.payload.current_group }}"
+                cve_id: "{{ event.payload.payload.cve_id | default('CVE-2021-4034') }}"
+                severity: "{{ event.payload.payload.severity | default(7.8) }}"
+                advisory_id: "{{ event.payload.payload.advisory_id | default('RHSA-2022:0274') }}"
+                force_route: "{{ event.payload.payload.force_route | default('') }}"
 
 - name: ServiceNow CR Approval Bridge
   hosts: all

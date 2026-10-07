@@ -60,7 +60,7 @@ WEBHOOK_RESPONSE=$(curl -sk -X POST \
   "${AO_WEBHOOK_BASE_URL}/api/v1/webhooks/eda/${AO_WEBHOOK_PATH}" \
   -H "Authorization: Bearer ${ACCESS_TOKEN}" \
   -H "Content-Type: application/json" \
-  -d "{\"current_group\": \"$GROUP\"}" \
+  -d "{\"current_group\": \"$GROUP\", \"cve_id\": \"CVE-2021-4034\", \"severity\": 7.8, \"advisory_id\": \"RHSA-2022:0274\", \"force_route\": \"\"}" \
   -w "\n%{http_code}")
 
 HTTP_CODE=$(echo "$WEBHOOK_RESPONSE" | tail -1)
