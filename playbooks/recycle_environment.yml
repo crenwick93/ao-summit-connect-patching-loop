@@ -171,72 +171,74 @@
     _rh_activation_key: "{{ rh_activation_key | default(lookup('env', 'RH_ACTIVATION_KEY')) }}"
 
   tasks:
-    - name: Wait for cloud-init to complete
-      ansible.builtin.shell: cloud-init status --wait 2>/dev/null || sleep 30
-      changed_when: false
+    - name: Register and verify
+      block:
+        - name: Wait for cloud-init to complete
+          ansible.builtin.shell: cloud-init status --wait 2>/dev/null || sleep 30
+          changed_when: false
 
-    - name: Full registration sequence
-      ansible.builtin.shell: |
-        # Stop and mask auto-registration services
-        systemctl stop rhcd.service 2>/dev/null || true
-        systemctl disable rhcd.service 2>/dev/null || true
-        systemctl mask rhcd.service 2>/dev/null || true
-        systemctl stop rhsmcertd.service 2>/dev/null || true
-        systemctl mask rhsmcertd.service 2>/dev/null || true
-        sed -i 's/^auto_registration\s*=.*/auto_registration = 0/' /etc/rhsm/rhsm.conf 2>/dev/null || true
+        - name: Full registration sequence
+          ansible.builtin.shell: |
+            # Stop and mask auto-registration services
+            systemctl stop rhcd.service 2>/dev/null || true
+            systemctl disable rhcd.service 2>/dev/null || true
+            systemctl mask rhcd.service 2>/dev/null || true
+            systemctl stop rhsmcertd.service 2>/dev/null || true
+            systemctl mask rhsmcertd.service 2>/dev/null || true
+            sed -i 's/^auto_registration\s*=.*/auto_registration = 0/' /etc/rhsm/rhsm.conf 2>/dev/null || true
 
-        # Clean slate — remove any stale registration state
-        insights-client --unregister 2>/dev/null || true
-        subscription-manager unregister 2>/dev/null || true
-        rm -f /etc/insights-client/machine-id /etc/insights-client/.registered
-        rm -rf /etc/pki/consumer/* /etc/pki/entitlement/*
-        rm -rf /var/lib/rhsm/cache/* /var/lib/rhsm/facts/*
+            # Clean slate — remove any stale registration state
+            insights-client --unregister 2>/dev/null || true
+            subscription-manager unregister 2>/dev/null || true
+            rm -f /etc/insights-client/machine-id /etc/insights-client/.registered
+            rm -rf /etc/pki/consumer/* /etc/pki/entitlement/*
+            rm -rf /var/lib/rhsm/cache/* /var/lib/rhsm/facts/*
 
-        # Register with RHSM
-        subscription-manager register \
-          --org='{{ _rh_org_id }}' \
-          --activationkey='{{ _rh_activation_key }}' \
-          --force 2>&1
+            # Register with RHSM
+            subscription-manager register \
+              --org='{{ _rh_org_id }}' \
+              --activationkey='{{ _rh_activation_key }}' \
+              --force 2>&1
 
-        # Register with Insights
-        insights-client --register 2>&1
+            # Register with Insights
+            insights-client --register 2>&1
 
-        # Set Insights tags for grouping
-        mkdir -p /etc/insights-client
-        echo -e "---\ngroup: patching-loop" > /etc/insights-client/tags.yaml
+            # Set Insights tags for grouping
+            mkdir -p /etc/insights-client
+            echo -e "---\ngroup: patching-loop" > /etc/insights-client/tags.yaml
 
-        # Re-enable services for ongoing reporting
-        systemctl unmask rhsmcertd.service 2>/dev/null || true
-        systemctl enable --now rhsmcertd.service 2>/dev/null || true
-        systemctl unmask insights-client.timer 2>/dev/null || true
-        systemctl enable --now insights-client.timer 2>/dev/null || true
+            # Re-enable services for ongoing reporting
+            systemctl unmask rhsmcertd.service 2>/dev/null || true
+            systemctl enable --now rhsmcertd.service 2>/dev/null || true
+            systemctl unmask insights-client.timer 2>/dev/null || true
+            systemctl enable --now insights-client.timer 2>/dev/null || true
 
-        # Final check-in to confirm
-        insights-client 2>&1 | tail -1
-      register: reg_result
-      retries: 3
-      delay: 15
-      until: "'Successfully uploaded' in reg_result.stdout"
-      when: _rh_org_id | length > 0
+            # Final check-in to confirm
+            insights-client 2>&1 | tail -1
+          register: reg_result
+          retries: 3
+          delay: 15
+          until: "'Successfully uploaded' in reg_result.stdout"
+          when: _rh_org_id | length > 0
 
-    - name: Verify Insights registration
-      ansible.builtin.command: insights-client --status
-      register: verify_result
-      failed_when: "'confirms registration' not in verify_result.stdout"
-      when: _rh_org_id | length > 0
+        - name: Verify Insights registration
+          ansible.builtin.command: insights-client --status
+          register: verify_result
+          failed_when: "'confirms registration' not in verify_result.stdout"
+          when: _rh_org_id | length > 0
 
-    - name: Mark host as registered
-      ansible.builtin.set_fact:
-        _registration_ok: true
+        - name: Mark host as registered
+          ansible.builtin.set_fact:
+            _registration_ok: true
 
-  rescue:
-    - name: Mark host as failed registration
-      ansible.builtin.set_fact:
-        _registration_ok: false
+      rescue:
+        - name: Mark host as failed registration
+          ansible.builtin.set_fact:
+            _registration_ok: false
 
-    - name: "Registration failed — will retry sequentially"
-      ansible.builtin.debug:
-        msg: "{{ inventory_hostname }} failed initial registration — queued for sequential retry"
+        - name: "Registration failed — will retry sequentially"
+          ansible.builtin.debug:
+            msg: "{{ inventory_hostname }} failed initial registration — queued for sequential retry"
 
 # ---------------------------------------------------------------------------
 # Sequential retry for any hosts that failed registration
