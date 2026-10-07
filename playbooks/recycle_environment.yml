@@ -45,10 +45,57 @@
           instance-state-name: running
       register: existing_instances
 
-    - name: Display instances to terminate
+    - name: Display instances to recycle
       ansible.builtin.debug:
         msg: "Found {{ existing_instances.instances | length }} running instances for Group {{ _group }}"
 
+    - name: Add existing hosts to in-memory inventory for deregistration
+      ansible.builtin.add_host:
+        name: "{{ item.public_ip_address }}"
+        groups: deregister_hosts
+        ansible_user: ec2-user
+        ansible_become: true
+      loop: "{{ existing_instances.instances }}"
+      loop_control:
+        label: "{{ item.tags.Name | default(item.instance_id) }}"
+      when: existing_instances.instances | length > 0
+
+- name: Deregister hosts from Insights and RHSM before termination
+  hosts: deregister_hosts
+  become: true
+  gather_facts: false
+  ignore_unreachable: true
+
+  tasks:
+    - name: Unregister from Insights
+      ansible.builtin.command: insights-client --unregister
+      failed_when: false
+      changed_when: true
+
+    - name: Unregister from RHSM
+      ansible.builtin.command: subscription-manager unregister
+      failed_when: false
+      changed_when: true
+
+- name: Terminate and relaunch instances
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    _group: "{{ current_group | upper }}"
+    _aws_region: "{{ aws_region | default(lookup('env', 'AWS_REGION')) | default('eu-west-1', true) }}"
+    _base_ami: "{{ base_ami_id | default(lookup('env', 'AWS_BASE_AMI_ID')) }}"
+    _instance_type: "{{ instance_type | default(lookup('env', 'AWS_INSTANCE_TYPE')) | default('t3.micro', true) }}"
+    _subnet_id: "{{ subnet_id | default(lookup('env', 'AWS_SUBNET_ID')) }}"
+    _sg_id: "{{ security_group_id | default(lookup('env', 'AWS_SECURITY_GROUP_ID')) }}"
+    _key_pair: "{{ key_pair_name | default(lookup('env', 'AWS_KEY_PAIR_NAME')) | default('patching-loop', true) }}"
+    _group_hosts:
+      A: ["summit-rhel-01", "summit-rhel-02", "summit-rhel-03"]
+      B: ["summit-rhel-04", "summit-rhel-05", "summit-rhel-06"]
+      C: ["summit-rhel-07", "summit-rhel-08", "summit-rhel-09"]
+
+  tasks:
     - name: "Terminate Group {{ _group }} instances"
       amazon.aws.ec2_instance:
         region: "{{ _aws_region }}"
