@@ -164,6 +164,7 @@
   hosts: new_hosts
   become: true
   gather_facts: false
+  max_fail_percentage: 100
 
   vars:
     _rh_org_id: "{{ rh_org_id | default(lookup('env', 'RH_ORG_ID')) }}"
@@ -223,6 +224,66 @@
       register: verify_result
       failed_when: "'confirms registration' not in verify_result.stdout"
       when: _rh_org_id | length > 0
+
+    - name: Mark host as registered
+      ansible.builtin.set_fact:
+        _registration_ok: true
+
+  rescue:
+    - name: Mark host as failed registration
+      ansible.builtin.set_fact:
+        _registration_ok: false
+
+    - name: "Registration failed — will retry sequentially"
+      ansible.builtin.debug:
+        msg: "{{ inventory_hostname }} failed initial registration — queued for sequential retry"
+
+# ---------------------------------------------------------------------------
+# Sequential retry for any hosts that failed registration
+# ---------------------------------------------------------------------------
+- name: Sequential retry for failed hosts
+  hosts: new_hosts
+  become: true
+  gather_facts: false
+  serial: 1
+
+  vars:
+    _rh_org_id: "{{ rh_org_id | default(lookup('env', 'RH_ORG_ID')) }}"
+    _rh_activation_key: "{{ rh_activation_key | default(lookup('env', 'RH_ACTIVATION_KEY')) }}"
+
+  tasks:
+    - name: Skip hosts that already registered
+      ansible.builtin.meta: end_host
+      when: _registration_ok | default(false)
+
+    - name: "Sequential retry — {{ inventory_hostname }}"
+      ansible.builtin.shell: |
+        insights-client --unregister 2>/dev/null || true
+        subscription-manager unregister 2>/dev/null || true
+        rm -f /etc/insights-client/machine-id /etc/insights-client/.registered
+        rm -rf /etc/pki/consumer/* /etc/pki/entitlement/*
+        rm -rf /var/lib/rhsm/cache/* /var/lib/rhsm/facts/*
+        subscription-manager register \
+          --org='{{ _rh_org_id }}' \
+          --activationkey='{{ _rh_activation_key }}' \
+          --force 2>&1
+        insights-client --register 2>&1
+        mkdir -p /etc/insights-client
+        echo -e "---\ngroup: patching-loop" > /etc/insights-client/tags.yaml
+        systemctl unmask rhsmcertd.service 2>/dev/null || true
+        systemctl enable --now rhsmcertd.service 2>/dev/null || true
+        systemctl unmask insights-client.timer 2>/dev/null || true
+        systemctl enable --now insights-client.timer 2>/dev/null || true
+        insights-client 2>&1 | tail -1
+      register: retry_result
+      retries: 3
+      delay: 20
+      until: "'Successfully uploaded' in retry_result.stdout"
+
+    - name: Verify after sequential retry
+      ansible.builtin.command: insights-client --status
+      register: retry_verify
+      failed_when: "'confirms registration' not in retry_verify.stdout"
 
 # ---------------------------------------------------------------------------
 # Sync AAP inventory + fire next group
