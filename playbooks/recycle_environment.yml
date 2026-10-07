@@ -121,10 +121,15 @@
 
   tasks:
     - name: Register with RHSM using activation key
-      community.general.redhat_subscription:
-        state: present
-        org_id: "{{ _rh_org_id }}"
-        activationkey: "{{ _rh_activation_key }}"
+      ansible.builtin.shell: |
+        subscription-manager register \
+          --org="{{ _rh_org_id }}" \
+          --activationkey="{{ _rh_activation_key }}" \
+          --force
+      register: rhsm_result
+      retries: 3
+      delay: 10
+      until: rhsm_result.rc == 0
       when: _rh_org_id | length > 0
 
     - name: Register with Insights
