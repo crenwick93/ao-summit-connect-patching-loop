@@ -27,9 +27,9 @@
     _rh_org_id: "{{ rh_org_id | default(lookup('env', 'RH_ORG_ID')) }}"
     _rh_activation_key: "{{ rh_activation_key | default(lookup('env', 'RH_ACTIVATION_KEY')) }}"
     _group_hosts:
-      A: ["patch-loop-a1", "patch-loop-a2", "patch-loop-a3"]
-      B: ["patch-loop-b1", "patch-loop-b2", "patch-loop-b3"]
-      C: ["patch-loop-c1", "patch-loop-c2", "patch-loop-c3"]
+      A: ["summit-rhel-01", "summit-rhel-02", "summit-rhel-03"]
+      B: ["summit-rhel-04", "summit-rhel-05", "summit-rhel-06"]
+      C: ["summit-rhel-07", "summit-rhel-08", "summit-rhel-09"]
 
   tasks:
     - name: "Soak period — wait before recycling Group {{ _group }}"
