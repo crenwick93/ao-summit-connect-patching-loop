@@ -38,18 +38,12 @@
         validate_certs: false
       register: jt_result
 
-    - name: Update incident — patching ready for approval
-      servicenow.itsm.incident:
-        sys_id: "{{ inc_sys_id }}"
-        other:
-          work_notes: |
-            [AUTOMATED] Patching playbook ready for approval ⏳
-
-            Template "Loop - Patch {{ _cve_id }}" created,
-            targeting: {{ _target_hosts }}
-
-            Playbook synced from Lightspeed via GitHub. Awaiting approval.
-      when: inc_sys_id is defined
+    - name: Display sync result
+      ansible.builtin.debug:
+        msg: |
+          Patching template "Loop - Patch {{ _cve_id }}" created.
+          Targeting: {{ _target_hosts }}
+          Playbook synced from Lightspeed via GitHub.
 
     - name: Publish template details for AO
       ansible.builtin.set_stats:

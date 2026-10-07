@@ -44,25 +44,22 @@
           Target hosts: {{ target_hosts | default('tag_group_' ~ current_group) }}
 
           === Remediation ===
-          Apply PwnKit (CVE-2021-4034) systemtap mitigation to Group {{ current_group }} hosts.
+          Apply PwnKit (CVE-2021-4034) patching to Group {{ current_group }} hosts.
+          Playbook fetched from Red Hat Lightspeed Remediations API.
 
           === Workflow ===
-          Pre-checks passed. Awaiting approval to proceed with mitigation.
-          After mitigation: post-checks, incident resolution, group reset, then next group.
-
-          === Linked Incident ===
-          Parent Incident: {{ inc_number | default('N/A') }}
+          Awaiting approval to proceed with patching.
+          After patching: post-checks, CR closure, group reset, then next group.
         priority: "{{ cr_priority | default(3) }}"
         risk: "{{ cr_risk | default('low') }}"
         impact: "{{ cr_impact | default(3) }}"
         category: "{{ cr_category | default('Software') }}"
         assignment_group: "{{ cr_assignment_group | default('CAB Approval') }}"
         other:
-          parent: "{{ inc_sys_id | default(omit) }}"
-          justification: "Automated patching loop — PwnKit mitigation for Group {{ current_group }}."
-          implementation_plan: "Automated by Ansible Automation Platform and Automation Orchestrator. Systemtap module blocks pkexec exploitation."
+          justification: "Automated patching loop — PwnKit remediation for Group {{ current_group }}."
+          implementation_plan: "Automated by Ansible Automation Platform and Automation Orchestrator. Patching playbook fetched from Red Hat Lightspeed."
           backout_plan: "rmmod stap_pkexec_block && rm -f /root/pkexec-block.stp /root/pkexec-block.log"
-          test_plan: "Automated post-checks verify service health and systemtap module loaded on all hosts."
+          test_plan: "Automated post-checks verify service health and patching applied on all hosts."
       register: cr_result
       when: action == 'create'
 
@@ -75,17 +72,6 @@
           approval: requested
           assigned_to: "{{ servicenow_approver | default('admin') }}"
       when: action == 'create'
-
-    - name: Update incident with CR reference
-      servicenow.itsm.incident:
-        sys_id: "{{ inc_sys_id }}"
-        other:
-          work_notes: >-
-            [AUTOMATED] Change Request {{ cr_result.record.number }} raised for Group {{ current_group }} patching —
-            awaiting approval before mitigation proceeds.
-      when:
-        - action == 'create'
-        - inc_sys_id is defined
 
     - name: Display created CR
       ansible.builtin.debug:

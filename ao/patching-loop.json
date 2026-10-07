@@ -1,7 +1,7 @@
 {
   "schema_version": "2.0.0",
   "name": "Patching Loop",
-  "description": "Self-perpetuating patching loop: 9 EC2s in 3 rotating groups (A/B/C). Each cycle: assess, open incident, fetch Lightspeed playbook, sync & deploy, create CR (approval gate for booth visitor), pre-check, run patch, post-check, resolve incident, wait, reset group, fire next group.",
+  "description": "Self-perpetuating patching loop: 9 EC2s in 3 rotating groups (A/B/C). Each cycle: assess, fetch Lightspeed playbook, sync & deploy, create CR (approval gate for booth visitor), pre-check, run patch, post-check, close CR, wait, reset group, fire next group.",
   "triggers": [
     {
       "id": "trigger_eda",
@@ -48,24 +48,6 @@
       }
     },
     {
-      "id": "open_incident",
-      "type": "aap_job_template",
-      "name": "Open Incident",
-      "parameters": {
-        "diff_mode": false,
-        "extra_vars": {
-          "current_group": "${trigger.current_group}",
-          "target_hosts": "${fleet_assessment.artifacts.target_hosts}"
-        },
-        "job_template_name": "Loop - Open Incident",
-        "organization_name": "Default"
-      },
-      "position": {
-        "x": 800,
-        "y": 400
-      }
-    },
-    {
       "id": "fetch_and_commit",
       "type": "aap_job_template",
       "name": "Fetch Patching Playbook",
@@ -74,14 +56,13 @@
         "extra_vars": {
           "cve_id": "CVE-2021-4034",
           "current_group": "${trigger.current_group}",
-          "inc_sys_id": "${open_incident.artifacts.inc_sys_id}",
           "target_hosts": "${fleet_assessment.artifacts.target_hosts}"
         },
         "job_template_name": "Loop - Fetch and Commit",
         "organization_name": "Default"
       },
       "position": {
-        "x": 1200,
+        "x": 800,
         "y": 400
       }
     },
@@ -95,14 +76,13 @@
           "cve_id": "CVE-2021-4034",
           "current_group": "${trigger.current_group}",
           "target_hosts": "${fleet_assessment.artifacts.target_hosts}",
-          "inc_sys_id": "${open_incident.artifacts.inc_sys_id}",
           "playbook_filename": "${fetch_and_commit.artifacts.playbook_filename}"
         },
         "job_template_name": "Loop - Sync and Deploy",
         "organization_name": "Default"
       },
       "position": {
-        "x": 1600,
+        "x": 1200,
         "y": 400
       }
     },
@@ -115,15 +95,13 @@
         "extra_vars": {
           "action": "create",
           "current_group": "${trigger.current_group}",
-          "target_hosts": "${fleet_assessment.artifacts.target_hosts}",
-          "inc_sys_id": "${open_incident.artifacts.inc_sys_id}",
-          "inc_number": "${open_incident.artifacts.inc_number}"
+          "target_hosts": "${fleet_assessment.artifacts.target_hosts}"
         },
         "job_template_name": "Loop - Manage Change Request",
         "organization_name": "Default"
       },
       "position": {
-        "x": 2000,
+        "x": 1600,
         "y": 400
       }
     },
@@ -135,7 +113,7 @@
         "prompt": "Booth visitor: click Implement in ServiceNow to approve patching for Group ${trigger.current_group}"
       },
       "position": {
-        "x": 2400,
+        "x": 2000,
         "y": 400
       }
     },
@@ -148,13 +126,13 @@
         "diff_mode": false,
         "extra_vars": {
           "current_group": "${trigger.current_group}",
-          "inc_sys_id": "${open_incident.artifacts.inc_sys_id}"
+          "cr_sys_id": "${create_cr.artifacts.cr_sys_id}"
         },
         "job_template_name": "Loop - Pre-check",
         "organization_name": "Default"
       },
       "position": {
-        "x": 2800,
+        "x": 2400,
         "y": 400
       }
     },
@@ -167,13 +145,13 @@
         "diff_mode": false,
         "extra_vars": {
           "current_group": "${trigger.current_group}",
-          "inc_sys_id": "${open_incident.artifacts.inc_sys_id}"
+          "cr_sys_id": "${create_cr.artifacts.cr_sys_id}"
         },
         "job_template_name": "${sync_and_deploy.artifacts.template_name}",
         "organization_name": "Default"
       },
       "position": {
-        "x": 3200,
+        "x": 2800,
         "y": 400
       }
     },
@@ -186,33 +164,13 @@
         "diff_mode": false,
         "extra_vars": {
           "current_group": "${trigger.current_group}",
-          "inc_sys_id": "${open_incident.artifacts.inc_sys_id}"
+          "cr_sys_id": "${create_cr.artifacts.cr_sys_id}"
         },
         "job_template_name": "Loop - Post-check",
         "organization_name": "Default"
       },
       "position": {
-        "x": 3600,
-        "y": 400
-      }
-    },
-    {
-      "id": "resolve_incident",
-      "type": "aap_job_template",
-      "name": "Resolve Incident",
-      "parameters": {
-        "diff_mode": false,
-        "extra_vars": {
-          "current_group": "${trigger.current_group}",
-          "target_hosts": "${fleet_assessment.artifacts.target_hosts}",
-          "inc_sys_id": "${open_incident.artifacts.inc_sys_id}",
-          "inc_number": "${open_incident.artifacts.inc_number}"
-        },
-        "job_template_name": "Loop - Resolve Incident",
-        "organization_name": "Default"
-      },
-      "position": {
-        "x": 4000,
+        "x": 3200,
         "y": 400
       }
     },
@@ -224,13 +182,14 @@
         "diff_mode": false,
         "extra_vars": {
           "action": "close",
-          "cr_sys_id": "${create_cr.artifacts.cr_sys_id}"
+          "cr_sys_id": "${create_cr.artifacts.cr_sys_id}",
+          "close_notes": "Patching loop cycle for Group ${trigger.current_group} complete. All checks passed."
         },
         "job_template_name": "Loop - Manage Change Request",
         "organization_name": "Default"
       },
       "position": {
-        "x": 4400,
+        "x": 3600,
         "y": 400
       }
     },
@@ -242,7 +201,7 @@
         "duration": 180
       },
       "position": {
-        "x": 4800,
+        "x": 4000,
         "y": 400
       }
     },
@@ -259,7 +218,7 @@
         "organization_name": "Default"
       },
       "position": {
-        "x": 5200,
+        "x": 4400,
         "y": 400
       }
     },
@@ -276,7 +235,7 @@
         "organization_name": "Default"
       },
       "position": {
-        "x": 5600,
+        "x": 4800,
         "y": 400
       }
     }
@@ -288,10 +247,6 @@
     },
     {
       "from": "fleet_assessment",
-      "to": "open_incident"
-    },
-    {
-      "from": "open_incident",
       "to": "fetch_and_commit"
     },
     {
@@ -321,10 +276,6 @@
     },
     {
       "from": "postcheck",
-      "to": "resolve_incident"
-    },
-    {
-      "from": "resolve_incident",
       "to": "close_cr"
     },
     {

@@ -254,17 +254,6 @@ controller_templates:
     credentials:
       - "Loop - SSH Key"
 
-  - name: "Loop - Open Incident"
-    description: "Create ServiceNow incident for this patching cycle"
-    organization: "Default"
-    job_type: "run"
-    project: "Patching Loop"
-    playbook: "playbooks/snow_open_incident.yml"
-    inventory: "Patching Loop Lab"
-    ask_variables_on_launch: true
-    credentials:
-      - "Loop - ServiceNow"
-
   - name: "Loop - Manage Change Request"
     description: "Create, update, review, or close change requests in ServiceNow"
     organization: "Default"
@@ -348,17 +337,6 @@ controller_templates:
     ask_limit_on_launch: true
     credentials:
       - "Loop - SSH Key"
-      - "Loop - ServiceNow"
-
-  - name: "Loop - Resolve Incident"
-    description: "Close-out and resolve the ServiceNow incident"
-    organization: "Default"
-    job_type: "run"
-    project: "Patching Loop"
-    playbook: "playbooks/snow_resolve_incident.yml"
-    inventory: "Patching Loop Lab"
-    ask_variables_on_launch: true
-    credentials:
       - "Loop - ServiceNow"
 
   - name: "Loop - Reset Group"

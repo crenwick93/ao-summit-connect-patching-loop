@@ -49,16 +49,16 @@
       ansible.builtin.debug:
         msg: "{{ postcheck_report }}"
 
-    - name: Update incident — post-checks passed
-      servicenow.itsm.incident:
-        sys_id: "{{ inc_sys_id }}"
+    - name: Update CR — post-checks passed
+      servicenow.itsm.change_request:
+        sys_id: "{{ cr_sys_id }}"
         other:
           work_notes: |
             [AUTOMATED] Post-checks PASSED ✅ for Group {{ current_group | default('?') }}
 
             {{ postcheck_report }}
       delegate_to: localhost
-      when: inc_sys_id is defined
+      when: cr_sys_id is defined
 
     - name: Publish post-check data
       ansible.builtin.set_stats:

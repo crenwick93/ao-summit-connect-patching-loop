@@ -69,18 +69,18 @@
       ansible.builtin.debug:
         msg: "{{ precheck_report }}"
 
-    - name: Update incident — pre-checks passed
-      servicenow.itsm.incident:
-        sys_id: "{{ inc_sys_id }}"
+    - name: Update CR — pre-checks passed
+      servicenow.itsm.change_request:
+        sys_id: "{{ cr_sys_id }}"
         other:
           work_notes: |
             [AUTOMATED] Pre-checks PASSED ✅ for Group {{ current_group | default('?') }}
 
             {{ precheck_report }}
 
-            Systems are ready for PwnKit mitigation.
+            Systems are ready for patching.
       delegate_to: localhost
-      when: inc_sys_id is defined
+      when: cr_sys_id is defined
 
     - name: Publish pre-check summary
       ansible.builtin.set_stats:
