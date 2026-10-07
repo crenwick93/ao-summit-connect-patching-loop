@@ -2,8 +2,7 @@
 # =============================================================================
 # AAP Configuration as Code — Patching Loop (Summit Connect Demo)
 # =============================================================================
-# Namespaced with "Loop -" prefix to avoid collisions with the CVE remediation
-# project on the same AAP instance.
+# Clean names (no prefix) — only two projects share this AAP instance.
 
 # -----------------------------------------------------------------------------
 # Custom Credential Types
@@ -173,6 +172,40 @@ controller_credentials:
       lightspeed_client_id: "{{ lightspeed_client_id }}"
       lightspeed_client_secret: "{{ lightspeed_client_secret }}"
 
+  # --- Cleanup: delete old "Loop - " prefixed credentials ---
+  - name: "Loop - SSH Key"
+    organization: "Default"
+    credential_type: "Machine"
+    state: absent
+  - name: "Loop - AWS"
+    organization: "Default"
+    credential_type: "Amazon Web Services"
+    state: absent
+  - name: "Loop - ServiceNow"
+    organization: "Default"
+    credential_type: "ServiceNow Credential"
+    state: absent
+  - name: "Loop - AAP Controller"
+    organization: "Default"
+    credential_type: "Red Hat Ansible Automation Platform"
+    state: absent
+  - name: "Loop - AO Webhook"
+    organization: "Default"
+    credential_type: "AO Webhook Credential"
+    state: absent
+  - name: "Loop - AO API"
+    organization: "Default"
+    credential_type: "AO API Credential"
+    state: absent
+  - name: "Loop - GitHub Token"
+    organization: "Default"
+    credential_type: "GitHub API Token"
+    state: absent
+  - name: "Loop - Lightspeed API"
+    organization: "Default"
+    credential_type: "Lightspeed API Credential"
+    state: absent
+
 # -----------------------------------------------------------------------------
 # Projects
 # -----------------------------------------------------------------------------
@@ -192,6 +225,11 @@ controller_projects:
     scm_url: "{{ git_repo_url }}"
     scm_branch: "main"
     scm_update_on_launch: true
+
+  # --- Cleanup: delete old "Loop - " prefixed project ---
+  - name: "Loop - Lightspeed-Playbooks"
+    organization: "Default"
+    state: absent
 
 # -----------------------------------------------------------------------------
 # Inventories
@@ -226,6 +264,11 @@ controller_inventory_sources:
         ansible_host: public_ip_address
         ansible_user: "'ec2-user'"
         ansible_become: "true"
+
+  # --- Cleanup: delete old "Loop - " prefixed inventory source ---
+  - name: "Loop - AWS EC2 Discovery"
+    inventory: "Patching Loop Lab"
+    state: absent
 
 # -----------------------------------------------------------------------------
 # Job Templates (12 — matching AO workflow nodes)
@@ -352,6 +395,38 @@ controller_templates:
       - "SSH Key"
       - "AO Webhook"
 
+  # --- Cleanup: delete old "Loop - " prefixed templates ---
+  - name: "Loop - Trigger AO Workflow"
+    organization: "Default"
+    state: absent
+  - name: "Loop - Fleet Assessment"
+    organization: "Default"
+    state: absent
+  - name: "Loop - Manage Change Request"
+    organization: "Default"
+    state: absent
+  - name: "Loop - Bridge AO Approval"
+    organization: "Default"
+    state: absent
+  - name: "Loop - Fetch and Commit"
+    organization: "Default"
+    state: absent
+  - name: "Loop - Sync and Deploy"
+    organization: "Default"
+    state: absent
+  - name: "Loop - Pre-check"
+    organization: "Default"
+    state: absent
+  - name: "Loop - Run Mitigation"
+    organization: "Default"
+    state: absent
+  - name: "Loop - Post-check"
+    organization: "Default"
+    state: absent
+  - name: "Loop - Recycle Environment"
+    organization: "Default"
+    state: absent
+
 # =============================================================================
 # Event-Driven Ansible
 # =============================================================================
@@ -429,6 +504,20 @@ eda_credentials:
       auth_type: token
       token: "{{ eda_event_stream_token }}"
       http_header_key: Authorization
+
+  # --- Cleanup: delete old "Loop - " prefixed EDA credentials ---
+  - name: "Loop - AAP Controller Token"
+    credential_type: "Red Hat Ansible Automation Platform"
+    organization: "Default"
+    state: absent
+  - name: "Loop - ServiceNow EDA"
+    credential_type: "ServiceNow Credential"
+    organization: "Default"
+    state: absent
+  - name: "Loop - Webhook Token"
+    credential_type: "Token Event Stream"
+    organization: "Default"
+    state: absent
 
 # -----------------------------------------------------------------------------
 # Event Streams
