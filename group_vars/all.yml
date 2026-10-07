@@ -1,6 +1,4 @@
 ---
-github_repo: "{{ lookup('env', 'GITHUB_REPO') | default('crenwick93/ao-summit-connect-patching-loop', true) }}"
-
 # Service health checks — used by precheck.yml and postcheck.yml
 critical_services:
   - nginx
