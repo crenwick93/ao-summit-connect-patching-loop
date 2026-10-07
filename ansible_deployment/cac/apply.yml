@@ -33,6 +33,9 @@
     lightspeed_client_id: "{{ lookup('env', 'LIGHTSPEED_CLIENT_ID') | default('placeholder', true) }}"
     lightspeed_client_secret: "{{ lookup('env', 'LIGHTSPEED_CLIENT_SECRET') | default('placeholder', true) }}"
 
+    rh_org_id: "{{ lookup('env', 'RH_ORG_ID') | default('placeholder', true) }}"
+    rh_activation_key: "{{ lookup('env', 'RH_ACTIVATION_KEY') | default('placeholder', true) }}"
+
     servicenow_instance_url: "{{ lookup('env', 'SERVICENOW_INSTANCE_URL') | default(omit, true) }}"
     servicenow_username: "{{ lookup('env', 'SERVICENOW_USERNAME') | default(omit, true) }}"
     servicenow_password: "{{ lookup('env', 'SERVICENOW_PASSWORD') | default(omit, true) }}"

@@ -101,6 +101,23 @@ controller_credential_types:
         LIGHTSPEED_CLIENT_ID: !unsafe "{{ lightspeed_client_id }}"
         LIGHTSPEED_CLIENT_SECRET: !unsafe "{{ lightspeed_client_secret }}"
 
+  - name: "RHSM Registration Credential"
+    description: "Red Hat subscription org ID and activation key for Insights registration"
+    kind: cloud
+    inputs:
+      fields:
+        - id: rh_org_id
+          type: string
+          label: "Red Hat Org ID"
+        - id: rh_activation_key
+          type: string
+          label: "Activation Key"
+          secret: true
+    injectors:
+      env:
+        RH_ORG_ID: !unsafe "{{ rh_org_id }}"
+        RH_ACTIVATION_KEY: !unsafe "{{ rh_activation_key }}"
+
 # -----------------------------------------------------------------------------
 # Credentials
 # -----------------------------------------------------------------------------
@@ -171,6 +188,14 @@ controller_credentials:
     inputs:
       lightspeed_client_id: "{{ lightspeed_client_id }}"
       lightspeed_client_secret: "{{ lightspeed_client_secret }}"
+
+  - name: "RHSM Registration"
+    description: "Red Hat org ID and activation key for Insights registration"
+    organization: "Default"
+    credential_type: "RHSM Registration Credential"
+    inputs:
+      rh_org_id: "{{ rh_org_id }}"
+      rh_activation_key: "{{ rh_activation_key }}"
 
   # --- Cleanup: delete old "Loop - " prefixed credentials ---
   - name: "Loop - SSH Key"
@@ -394,6 +419,7 @@ controller_templates:
       - "AWS"
       - "SSH Key"
       - "AO Webhook"
+      - "RHSM Registration"
 
   # --- Cleanup: delete old "Loop - " prefixed templates ---
   - name: "Loop - Trigger AO Workflow"
