@@ -1,7 +1,7 @@
 {
   "schema_version": "2.0.0",
   "name": "Patching Loop",
-  "description": "Self-perpetuating patching loop: 9 EC2s in 3 rotating groups (A/B/C). Each cycle: assess, open incident, create CR (approval gate for booth visitor), pre-check, mitigate PwnKit, post-check, resolve incident, wait, reset group, fire next group.",
+  "description": "Self-perpetuating patching loop: 9 EC2s in 3 rotating groups (A/B/C). Each cycle: assess, open incident, fetch Lightspeed playbook, sync & deploy, create CR (approval gate for booth visitor), pre-check, run patch, post-check, resolve incident, wait, reset group, fire next group.",
   "triggers": [
     {
       "id": "trigger_eda",
@@ -66,6 +66,47 @@
       }
     },
     {
+      "id": "fetch_and_commit",
+      "type": "aap_job_template",
+      "name": "Fetch Patching Playbook",
+      "parameters": {
+        "diff_mode": false,
+        "extra_vars": {
+          "cve_id": "CVE-2021-4034",
+          "current_group": "${trigger.current_group}",
+          "inc_sys_id": "${open_incident.artifacts.inc_sys_id}",
+          "target_hosts": "${fleet_assessment.artifacts.target_hosts}"
+        },
+        "job_template_name": "Loop - Fetch and Commit",
+        "organization_name": "Default"
+      },
+      "position": {
+        "x": 1200,
+        "y": 400
+      }
+    },
+    {
+      "id": "sync_and_deploy",
+      "type": "aap_job_template",
+      "name": "Sync & Deploy",
+      "parameters": {
+        "diff_mode": false,
+        "extra_vars": {
+          "cve_id": "CVE-2021-4034",
+          "current_group": "${trigger.current_group}",
+          "target_hosts": "${fleet_assessment.artifacts.target_hosts}",
+          "inc_sys_id": "${open_incident.artifacts.inc_sys_id}",
+          "playbook_filename": "${fetch_and_commit.artifacts.playbook_filename}"
+        },
+        "job_template_name": "Loop - Sync and Deploy",
+        "organization_name": "Default"
+      },
+      "position": {
+        "x": 1600,
+        "y": 400
+      }
+    },
+    {
       "id": "create_cr",
       "type": "aap_job_template",
       "name": "Create Change Request",
@@ -82,7 +123,7 @@
         "organization_name": "Default"
       },
       "position": {
-        "x": 1200,
+        "x": 2000,
         "y": 400
       }
     },
@@ -94,7 +135,7 @@
         "prompt": "Booth visitor: click Implement in ServiceNow to approve patching for Group ${trigger.current_group}"
       },
       "position": {
-        "x": 1600,
+        "x": 2400,
         "y": 400
       }
     },
@@ -113,14 +154,14 @@
         "organization_name": "Default"
       },
       "position": {
-        "x": 2000,
+        "x": 2800,
         "y": 400
       }
     },
     {
-      "id": "run_mitigation",
+      "id": "run_patch",
       "type": "aap_job_template",
-      "name": "Run PwnKit Mitigation",
+      "name": "Run Patch",
       "parameters": {
         "limit": "tag_group_${trigger.current_group}",
         "diff_mode": false,
@@ -128,11 +169,11 @@
           "current_group": "${trigger.current_group}",
           "inc_sys_id": "${open_incident.artifacts.inc_sys_id}"
         },
-        "job_template_name": "Loop - Run Mitigation",
+        "job_template_name": "${sync_and_deploy.artifacts.template_name}",
         "organization_name": "Default"
       },
       "position": {
-        "x": 2400,
+        "x": 3200,
         "y": 400
       }
     },
@@ -151,7 +192,7 @@
         "organization_name": "Default"
       },
       "position": {
-        "x": 2800,
+        "x": 3600,
         "y": 400
       }
     },
@@ -171,7 +212,7 @@
         "organization_name": "Default"
       },
       "position": {
-        "x": 3200,
+        "x": 4000,
         "y": 400
       }
     },
@@ -189,7 +230,7 @@
         "organization_name": "Default"
       },
       "position": {
-        "x": 3600,
+        "x": 4400,
         "y": 400
       }
     },
@@ -201,7 +242,7 @@
         "duration": 180
       },
       "position": {
-        "x": 4000,
+        "x": 4800,
         "y": 400
       }
     },
@@ -218,7 +259,7 @@
         "organization_name": "Default"
       },
       "position": {
-        "x": 4400,
+        "x": 5200,
         "y": 400
       }
     },
@@ -235,7 +276,7 @@
         "organization_name": "Default"
       },
       "position": {
-        "x": 4800,
+        "x": 5600,
         "y": 400
       }
     }
@@ -251,6 +292,14 @@
     },
     {
       "from": "open_incident",
+      "to": "fetch_and_commit"
+    },
+    {
+      "from": "fetch_and_commit",
+      "to": "sync_and_deploy"
+    },
+    {
+      "from": "sync_and_deploy",
       "to": "create_cr"
     },
     {
@@ -264,10 +313,10 @@
     },
     {
       "from": "precheck",
-      "to": "run_mitigation"
+      "to": "run_patch"
     },
     {
-      "from": "run_mitigation",
+      "from": "run_patch",
       "to": "postcheck"
     },
     {

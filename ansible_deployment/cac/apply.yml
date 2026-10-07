@@ -26,7 +26,12 @@
     aws_access_key: "{{ lookup('env', 'AWS_ACCESS_KEY_ID') | default(omit, true) }}"
     aws_secret_key: "{{ lookup('env', 'AWS_SECRET_ACCESS_KEY') | default(omit, true) }}"
 
-    git_repo_url: "https://github.com/crenwick93/ao-summit-connect-patching-loop.git"
+    github_repo: "{{ lookup('env', 'GITHUB_REPO') | default('crenwick93/ao-summit-connect-patching-loop', true) }}"
+    git_repo_url: "{{ 'https://github.com/' ~ github_repo ~ '.git' }}"
+    github_token: "{{ lookup('env', 'GITHUB_TOKEN') | default(omit, true) }}"
+
+    lightspeed_client_id: "{{ lookup('env', 'LIGHTSPEED_CLIENT_ID') | default('placeholder', true) }}"
+    lightspeed_client_secret: "{{ lookup('env', 'LIGHTSPEED_CLIENT_SECRET') | default('placeholder', true) }}"
 
     servicenow_instance_url: "{{ lookup('env', 'SERVICENOW_INSTANCE_URL') | default(omit, true) }}"
     servicenow_username: "{{ lookup('env', 'SERVICENOW_USERNAME') | default(omit, true) }}"

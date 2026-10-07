@@ -72,6 +72,36 @@ controller_credential_types:
         ao_sa_client_secret: !unsafe "{{ ao_sa_client_secret }}"
         ao_base_url: !unsafe "{{ ao_base_url }}"
 
+  - name: "GitHub API Token"
+    description: "Personal access token for GitHub API operations"
+    kind: cloud
+    inputs:
+      fields:
+        - id: github_token
+          type: string
+          label: "GitHub Token"
+          secret: true
+    injectors:
+      env:
+        GITHUB_TOKEN: !unsafe "{{ github_token }}"
+
+  - name: "Lightspeed API Credential"
+    description: "OAuth2 client credentials for Red Hat Lightspeed Remediations API"
+    kind: cloud
+    inputs:
+      fields:
+        - id: lightspeed_client_id
+          type: string
+          label: "Client ID"
+        - id: lightspeed_client_secret
+          type: string
+          label: "Client Secret"
+          secret: true
+    injectors:
+      env:
+        LIGHTSPEED_CLIENT_ID: !unsafe "{{ lightspeed_client_id }}"
+        LIGHTSPEED_CLIENT_SECRET: !unsafe "{{ lightspeed_client_secret }}"
+
 # -----------------------------------------------------------------------------
 # Credentials
 # -----------------------------------------------------------------------------
@@ -128,12 +158,35 @@ controller_credentials:
       ao_sa_client_secret: "{{ ao_webhook_client_secret }}"
       ao_base_url: "{{ ao_webhook_base_url }}"
 
+  - name: "Loop - GitHub Token"
+    description: "GitHub PAT for committing Lightspeed-fetched playbooks"
+    organization: "Default"
+    credential_type: "GitHub API Token"
+    inputs:
+      github_token: "{{ github_token }}"
+
+  - name: "Loop - Lightspeed API"
+    description: "OAuth2 credentials for Lightspeed Remediations API"
+    organization: "Default"
+    credential_type: "Lightspeed API Credential"
+    inputs:
+      lightspeed_client_id: "{{ lightspeed_client_id }}"
+      lightspeed_client_secret: "{{ lightspeed_client_secret }}"
+
 # -----------------------------------------------------------------------------
 # Projects
 # -----------------------------------------------------------------------------
 controller_projects:
   - name: "Patching Loop"
     description: "Playbooks and rulebooks for Summit Connect patching loop demo"
+    organization: "Default"
+    scm_type: "git"
+    scm_url: "{{ git_repo_url }}"
+    scm_branch: "main"
+    scm_update_on_launch: true
+
+  - name: "Loop - Lightspeed-Playbooks"
+    description: "Dynamically fetched patching playbooks from Red Hat Lightspeed"
     organization: "Default"
     scm_type: "git"
     scm_url: "{{ git_repo_url }}"
@@ -175,7 +228,7 @@ controller_inventory_sources:
         ansible_become: "true"
 
 # -----------------------------------------------------------------------------
-# Job Templates (10 — matching AO workflow nodes)
+# Job Templates (12 — matching AO workflow nodes)
 # -----------------------------------------------------------------------------
 controller_templates:
   - name: "Loop - Trigger AO Workflow"
@@ -234,8 +287,33 @@ controller_templates:
     credentials:
       - "Loop - AO API"
 
+  - name: "Loop - Fetch and Commit"
+    description: "Fetches patching playbook from Lightspeed Remediations API and commits to GitHub"
+    organization: "Default"
+    job_type: "run"
+    project: "Patching Loop"
+    playbook: "playbooks/fetch_and_commit.yml"
+    inventory: "Patching Loop Lab"
+    ask_variables_on_launch: true
+    credentials:
+      - "Loop - GitHub Token"
+      - "Loop - Lightspeed API"
+
+  - name: "Loop - Sync and Deploy"
+    description: "Syncs Lightspeed project, creates scoped job template for the fetched playbook"
+    organization: "Default"
+    job_type: "run"
+    project: "Patching Loop"
+    playbook: "playbooks/sync_and_deploy.yml"
+    inventory: "Patching Loop Lab"
+    ask_variables_on_launch: true
+    credentials:
+      - "Loop - SSH Key"
+      - "Loop - AAP Controller"
+      - "Loop - ServiceNow"
+
   - name: "Loop - Pre-check"
-    description: "System readiness checks before mitigation"
+    description: "System readiness checks before patching"
     organization: "Default"
     job_type: "run"
     project: "Patching Loop"
@@ -248,7 +326,7 @@ controller_templates:
       - "Loop - ServiceNow"
 
   - name: "Loop - Run Mitigation"
-    description: "Apply PwnKit (CVE-2021-4034) systemtap mitigation"
+    description: "Apply PwnKit (CVE-2021-4034) systemtap mitigation (fallback)"
     organization: "Default"
     job_type: "run"
     project: "Patching Loop"

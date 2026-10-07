@@ -1,0 +1,220 @@
+---
+- name: Fetch Patching Playbook from Lightspeed and Commit to GitHub
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    _github_repo: "{{ github_repo | default('crenwick93/ao-summit-connect-patching-loop') }}"
+    _cve_id: "{{ cve_id | default('CVE-2021-4034') }}"
+    insights_base: "https://console.redhat.com"
+    sso_url: "https://sso.redhat.com/auth/realms/redhat-external/protocol/openid-connect/token"
+    lightspeed_client_id: "{{ lookup('env', 'LIGHTSPEED_CLIENT_ID') }}"
+    lightspeed_client_secret: "{{ lookup('env', 'LIGHTSPEED_CLIENT_SECRET') }}"
+
+  tasks:
+    # --- Step 1: Authenticate with Red Hat SSO ---
+    - name: Get access token via client credentials
+      ansible.builtin.uri:
+        url: "{{ sso_url }}"
+        method: POST
+        body_format: form-urlencoded
+        body:
+          grant_type: client_credentials
+          client_id: "{{ lightspeed_client_id }}"
+          client_secret: "{{ lightspeed_client_secret }}"
+        return_content: true
+        status_code: 200
+      register: sso_result
+      no_log: true
+
+    - name: Set access token
+      ansible.builtin.set_fact:
+        access_token: "{{ sso_result.json.access_token }}"
+      no_log: true
+
+    # --- Step 2: Find a system UUID for the remediation request ---
+    - name: Get affected systems for this CVE
+      ansible.builtin.uri:
+        url: "{{ insights_base }}/api/vulnerability/v1/cves/{{ _cve_id }}/affected_systems?limit=100"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ access_token }}"
+        return_content: true
+      register: affected_systems
+
+    - name: Pick first affected system UUID
+      ansible.builtin.set_fact:
+        system_uuid: "{{ affected_systems.json.data | map(attribute='id') | first | default('') }}"
+
+    - name: Fail if no affected systems found
+      ansible.builtin.fail:
+        msg: "No affected systems found for {{ _cve_id }} in Insights"
+      when: system_uuid == ''
+
+    # --- Step 3: Create remediation and fetch playbook ---
+    - name: Search for existing remediation
+      ansible.builtin.uri:
+        url: "{{ insights_base }}/api/remediations/v1/remediations?limit=50"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ access_token }}"
+        return_content: true
+      register: all_remediations
+
+    - name: Find exact name match
+      ansible.builtin.set_fact:
+        _rem_name: "Patching Loop - {{ _cve_id }}"
+        _exact_match: "{{ all_remediations.json.data | selectattr('name', 'equalto', 'Patching Loop - ' ~ _cve_id) | list }}"
+
+    - name: Create remediation via Insights API
+      ansible.builtin.uri:
+        url: "{{ insights_base }}/api/remediations/v1/remediations"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ access_token }}"
+          Content-Type: "application/json"
+        body_format: json
+        body:
+          name: "{{ _rem_name }}"
+          auto_reboot: true
+          add:
+            issues:
+              - id: "vulnerabilities:{{ _cve_id }}"
+                resolution: "fix"
+                systems:
+                  - "{{ system_uuid }}"
+        return_content: true
+        status_code: [200, 201]
+      register: remediation_result
+      when: _exact_match | length == 0
+
+    - name: Set remediation ID
+      ansible.builtin.set_fact:
+        remediation_id: "{{ (remediation_result.json.id if remediation_result is not skipped else _exact_match[0].id) }}"
+
+    - name: Get generated playbook content (retry if 204)
+      ansible.builtin.uri:
+        url: "{{ insights_base }}/api/remediations/v1/remediations/{{ remediation_id }}/playbook"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ access_token }}"
+          Accept: "text/vnd.yaml"
+        return_content: true
+        status_code: [200, 204]
+      register: playbook_result
+      until: playbook_result.status == 200
+      retries: 3
+      delay: 10
+      failed_when: false
+
+    # --- Self-healing: if playbook is persistently 204, delete and recreate ---
+    - name: Delete stale remediation (systems may have changed)
+      ansible.builtin.uri:
+        url: "{{ insights_base }}/api/remediations/v1/remediations/{{ remediation_id }}"
+        method: DELETE
+        headers:
+          Authorization: "Bearer {{ access_token }}"
+        status_code: [200, 204]
+      when: playbook_result.status | default(200) == 204
+
+    - name: Recreate remediation with current system UUIDs
+      ansible.builtin.uri:
+        url: "{{ insights_base }}/api/remediations/v1/remediations"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ access_token }}"
+          Content-Type: "application/json"
+        body_format: json
+        body:
+          name: "{{ _rem_name }}"
+          auto_reboot: true
+          add:
+            issues:
+              - id: "vulnerabilities:{{ _cve_id }}"
+                resolution: "fix"
+                systems:
+                  - "{{ system_uuid }}"
+        return_content: true
+        status_code: [200, 201]
+      register: recreated_remediation
+      when: playbook_result.status | default(200) == 204
+
+    - name: Update remediation ID after recreate
+      ansible.builtin.set_fact:
+        remediation_id: "{{ recreated_remediation.json.id }}"
+      when: recreated_remediation is not skipped
+
+    - name: Get playbook content after recreate
+      ansible.builtin.uri:
+        url: "{{ insights_base }}/api/remediations/v1/remediations/{{ remediation_id }}/playbook"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ access_token }}"
+          Accept: "text/vnd.yaml"
+        return_content: true
+        status_code: [200, 204]
+      register: recreated_playbook_result
+      until: recreated_playbook_result.status == 200
+      retries: 5
+      delay: 10
+      when: recreated_remediation is not skipped
+
+    - name: Use recreated playbook result if applicable
+      ansible.builtin.set_fact:
+        playbook_result: "{{ recreated_playbook_result }}"
+      when: recreated_remediation is not skipped
+
+    - name: Fail if playbook still unavailable after self-healing
+      ansible.builtin.fail:
+        msg: "Insights Remediations API returned 204 (no playbook content) after delete/recreate cycle."
+      when: playbook_result.status | default(0) != 200
+
+    - name: Set playbook content (target all hosts in group)
+      ansible.builtin.set_fact:
+        playbook_content: "{{ playbook_result.content | regex_replace('hosts:.*', 'hosts: all') }}"
+
+    # --- Step 4: Commit playbook to GitHub ---
+    - name: Check if playbook already exists in GitHub
+      ansible.builtin.uri:
+        url: "https://api.github.com/repos/{{ _github_repo }}/contents/lightspeed-playbooks/remediation-{{ _cve_id }}.yml"
+        method: GET
+        headers:
+          Authorization: "token {{ lookup('env', 'GITHUB_TOKEN') }}"
+          Accept: "application/vnd.github.v3+json"
+        return_content: true
+        status_code: [200, 404]
+      register: existing_file
+
+    - name: Commit playbook to GitHub
+      ansible.builtin.uri:
+        url: "https://api.github.com/repos/{{ _github_repo }}/contents/lightspeed-playbooks/remediation-{{ _cve_id }}.yml"
+        method: PUT
+        headers:
+          Authorization: "token {{ lookup('env', 'GITHUB_TOKEN') }}"
+          Accept: "application/vnd.github.v3+json"
+          Content-Type: "application/json"
+        body_format: json
+        body:
+          message: "Add patching playbook: {{ _cve_id }}"
+          content: "{{ playbook_content | b64encode }}"
+          sha: "{{ existing_file.json.sha | default(omit) }}"
+        return_content: true
+        status_code: [200, 201]
+      register: commit_result
+
+    # --- Step 5: Publish artifacts ---
+    - name: Display results
+      ansible.builtin.debug:
+        msg: |
+          Playbook committed to GitHub:
+            Repo: {{ _github_repo }}
+            Path: lightspeed-playbooks/remediation-{{ _cve_id }}.yml
+            System UUID: {{ system_uuid }}
+
+    - name: Publish artifacts
+      ansible.builtin.set_stats:
+        data:
+          playbook_filename: "lightspeed-playbooks/remediation-{{ _cve_id }}.yml"
+          github_committed: true
+          system_uuid: "{{ system_uuid }}"

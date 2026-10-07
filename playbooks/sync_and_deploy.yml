@@ -1,0 +1,59 @@
+---
+- name: Sync Lightspeed Project and Create Patching Template
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    controller_validate_certs: false
+    _cve_id: "{{ cve_id | default('CVE-2021-4034') }}"
+    _target_hosts: "{{ target_hosts | default('') }}"
+    _playbook_filename: "{{ playbook_filename | default('lightspeed-playbooks/remediation-' + _cve_id + '.yml') }}"
+
+  tasks:
+    - name: Sync Lightspeed-Playbooks project
+      ansible.controller.project_update:
+        name: Loop - Lightspeed-Playbooks
+        wait: true
+        timeout: 180
+        request_timeout: 120
+        validate_certs: false
+
+    - name: Create patching job template from Lightspeed playbook
+      ansible.controller.job_template:
+        name: "Loop - Patch {{ _cve_id }}"
+        job_type: run
+        project: "Loop - Lightspeed-Playbooks"
+        playbook: "{{ _playbook_filename }}"
+        inventory: "Patching Loop Lab"
+        limit: "{{ _target_hosts }}"
+        become_enabled: true
+        credentials:
+          - "Loop - SSH Key"
+        extra_vars:
+          ansible_ssh_retries: 10
+          ansible_ssh_timeout: 30
+        state: present
+        request_timeout: 120
+        validate_certs: false
+      register: jt_result
+
+    - name: Update incident — patching ready for approval
+      servicenow.itsm.incident:
+        sys_id: "{{ inc_sys_id }}"
+        other:
+          work_notes: |
+            [AUTOMATED] Patching playbook ready for approval ⏳
+
+            Template "Loop - Patch {{ _cve_id }}" created,
+            targeting: {{ _target_hosts }}
+
+            Playbook synced from Lightspeed via GitHub. Awaiting approval.
+      when: inc_sys_id is defined
+
+    - name: Publish template details for AO
+      ansible.builtin.set_stats:
+        data:
+          template_name: "Loop - Patch {{ _cve_id }}"
+          template_id: "{{ jt_result.id }}"
+          status: ready
