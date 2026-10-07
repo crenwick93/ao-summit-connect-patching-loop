@@ -4,9 +4,9 @@
 # Three rulesets:
 #   1. Webhook trigger — receives webhook from start-loop.sh or recycle_environment.yml
 #      with current_group payload. Triggers the AO patching workflow.
-#   2. SNOW CR bridge — polls change_request table for CRs with "Patching Loop"
+#   2. SNOW CR bridge — polls change_request table for CRs with "CVE Remediation"
 #      in description. When state = Implement (-1), bridges to AO approval gate.
-#   3. SNOW CR closed — when a Patching Loop CR is closed (state = 3), triggers the
+#   3. SNOW CR closed — when a CVE Remediation CR is closed (state = 3), triggers the
 #      recycle job to soak, reset EC2s, and fire the next group. This keeps the AO
 #      workflow clean — it ends at Close CR and shows Completed immediately.
 #
@@ -45,7 +45,7 @@
         table: change_request
         interval: 10
         sysparm_query: >
-          short_descriptionLIKEPatching Loop^
+          short_descriptionLIKECVE Remediation^
           ORDERBYDESCsys_updated_on^ORDERBYDESCsys_id
         remote_servicenow_timezone: "Europe/London"
         filters:
