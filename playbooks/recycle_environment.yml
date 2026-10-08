@@ -2,16 +2,18 @@
 # Recycle demo environment after a patching cycle completes.
 # Triggered by EDA when it sees a closed CR matching "CVE Remediation".
 #
-# Flow: soak pause → deregister from Insights/RHSM → terminate EC2s →
-#       relaunch from base AMI with cloud-init → register with Insights →
-#       sync AAP inventory → fire AO webhook for next group.
+# Flow: discover → fire next group webhook IMMEDIATELY → deregister →
+#       terminate → relaunch → register → verify.
+#
+# The next group's AO workflow starts in parallel while this group recycles,
+# so there's no dead time between groups.
 #
 # Battle-tested patterns ported from provision-hosts.sh.
 #
 # Expects:
 #   current_group: A|B|C  (the group that was just patched — extracted by EDA from CR description)
 
-- name: Soak and discover instances
+- name: Discover instances and fire next group
   hosts: localhost
   connection: local
   gather_facts: false
@@ -19,6 +21,16 @@
   vars:
     _group: "{{ current_group | upper }}"
     _aws_region: "{{ aws_region | default(lookup('env', 'AWS_REGION')) | default('eu-west-1', true) }}"
+    _group_rotation:
+      A: B
+      B: C
+      C: A
+    _next_group: "{{ _group_rotation[_group] }}"
+    _stop_flag: /tmp/patching-loop-stop
+    webhook_base_url: ""
+    webhook_path: ""
+    webhook_client_id: ""
+    webhook_client_secret: ""
 
   tasks:
     - name: "Soak period — wait before recycling Group {{ _group }}"
@@ -50,6 +62,51 @@
       loop_control:
         label: "{{ item.tags.Name | default(item.instance_id) }}"
       when: existing_instances.instances | length > 0
+
+    # --- Fire next group BEFORE recycling so there's no dead time ---
+    - name: Check for stop flag
+      ansible.builtin.stat:
+        path: "{{ _stop_flag }}"
+      register: stop_flag_check
+
+    - name: Obtain OAuth token for AO webhook
+      ansible.builtin.uri:
+        url: "{{ webhook_base_url }}/api/v1/auth/token"
+        method: POST
+        body_format: form-urlencoded
+        body:
+          grant_type: client_credentials
+          client_id: "{{ webhook_client_id }}"
+          client_secret: "{{ webhook_client_secret }}"
+        validate_certs: false
+        status_code: 200
+      register: token_response
+      when: not stop_flag_check.stat.exists
+
+    - name: "Fire webhook for Group {{ _next_group }} (runs in parallel with recycle)"
+      ansible.builtin.uri:
+        url: "{{ webhook_base_url }}/api/v1/webhooks/eda/{{ webhook_path }}"
+        method: POST
+        body_format: json
+        headers:
+          Authorization: "Bearer {{ token_response.json.access_token }}"
+          Content-Type: application/json
+        body:
+          current_group: "{{ _next_group }}"
+          cve_id: "CVE-2021-4034"
+          severity: 7.8
+          advisory_id: "RHSA-2022:0274"
+          force_route: ""
+        validate_certs: false
+        status_code: 202
+      when: not stop_flag_check.stat.exists
+
+    - name: Display loop status
+      ansible.builtin.debug:
+        msg: >-
+          {{ 'Next group fired: ' ~ _group ~ ' recycling while Group ' ~ _next_group ~ ' workflow starts'
+             if not stop_flag_check.stat.exists
+             else 'Loop stopped at Group ' ~ _group ~ '. Remove ' ~ _stop_flag ~ ' and run start-loop.sh to resume.' }}
 
 # ---------------------------------------------------------------------------
 # Deregister — matches provision-hosts.sh deregistration pattern
@@ -306,70 +363,3 @@
     - name: "Confirmed — {{ instance_name | default(inventory_hostname) }}"
       ansible.builtin.debug:
         msg: "✅ {{ instance_name | default(inventory_hostname) }} is registered with Insights"
-
-# ---------------------------------------------------------------------------
-# Sync AAP inventory + fire next group
-# ---------------------------------------------------------------------------
-- name: Sync inventory and fire next group
-  hosts: localhost
-  connection: local
-  gather_facts: false
-
-  vars:
-    _current_group: "{{ current_group | upper }}"
-    _group_rotation:
-      A: B
-      B: C
-      C: A
-    _next_group: "{{ _group_rotation[_current_group] }}"
-    _stop_flag: /tmp/patching-loop-stop
-    webhook_base_url: ""
-    webhook_path: ""
-    webhook_client_id: ""
-    webhook_client_secret: ""
-
-  tasks:
-    - name: Check for stop flag
-      ansible.builtin.stat:
-        path: "{{ _stop_flag }}"
-      register: stop_flag_check
-
-    - name: Obtain OAuth token for AO webhook
-      ansible.builtin.uri:
-        url: "{{ webhook_base_url }}/api/v1/auth/token"
-        method: POST
-        body_format: form-urlencoded
-        body:
-          grant_type: client_credentials
-          client_id: "{{ webhook_client_id }}"
-          client_secret: "{{ webhook_client_secret }}"
-        validate_certs: false
-        status_code: 200
-      register: token_response
-      when: not stop_flag_check.stat.exists
-
-    - name: Fire webhook to EDA for next group
-      ansible.builtin.uri:
-        url: "{{ webhook_base_url }}/api/v1/webhooks/eda/{{ webhook_path }}"
-        method: POST
-        body_format: json
-        headers:
-          Authorization: "Bearer {{ token_response.json.access_token }}"
-          Content-Type: application/json
-        body:
-          current_group: "{{ _next_group }}"
-          cve_id: "CVE-2021-4034"
-          severity: 7.8
-          advisory_id: "RHSA-2022:0274"
-          force_route: ""
-        validate_certs: false
-        status_code: 202
-      register: webhook_response
-      when: not stop_flag_check.stat.exists
-
-    - name: Display loop status
-      ansible.builtin.debug:
-        msg: >-
-          {{ 'Loop continues: Group ' ~ _current_group ~ ' → Group ' ~ _next_group
-             if not stop_flag_check.stat.exists
-             else 'Loop stopped at Group ' ~ _current_group ~ '. Remove ' ~ _stop_flag ~ ' and run start-loop.sh to resume.' }}
